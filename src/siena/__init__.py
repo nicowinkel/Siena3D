@@ -1,4 +1,8 @@
 import sys
+from . import header
+from . import data
+from . import cube
+from . import astrometry
 
 if sys.version_info >= (3, 8):
     from importlib import metadata

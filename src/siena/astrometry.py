@@ -58,7 +58,7 @@ class Astrometry(Cube):
                            'wing_OIII':['OIII4959_wing', 'OIII5007_wing']
                   }
 
-
+        self.setup_rcparams()
         self.cube = Cube()
         self.cube.loadFitsCube(cubefile,cz=self.cz, extension_hdr=1, extension_data=1, extension_error=2)
         self.cube.get_minicube()  # get minicube centered at AGN location
@@ -94,7 +94,19 @@ class Astrometry(Cube):
 
     def read_in_table(self,file):
 
-        # reads table that contains parameters of the QSO spectrum model
+        """
+            Reads table that contains parameters of the QSO spectrum model
+
+            Parameters
+            ----------
+            file : `string`
+                file path of eline table
+
+            Returns
+            -------
+            table: `astropy.table`
+                astropy table with data from eline table file
+        """
 
         hdul = fits.open(file)
         table = Table(hdul[1].data)
@@ -103,6 +115,27 @@ class Astrometry(Cube):
 
 
     def get_qso_spectrum(self, data, error):
+
+        """
+            Reads table that contains parameters of the QSO spectrum model
+
+            Parameters
+            ----------
+            data : `numpy array`
+                data cube
+            error : `numpy array`
+                error cube
+
+            Returns
+            -------
+            qso_loc: `tuple`
+                (x,y) coordinates of AGN in data cube
+            qso_spec: `numpy array`
+                1D spectrum extracted from the AGN spaxel
+            qso_err: `numpy array`
+                1D error spectrum extracted from the AGN spaxel
+
+        """
 
         # returns position and spectrum brightest pixel
 
@@ -115,6 +148,28 @@ class Astrometry(Cube):
 
 
     def subtract_continuum(self,wvl,spectrum):
+
+        """
+            Extract and subtract linear continuum in the Hb window
+            by defining two regions in the rest-frame
+            (blue from Hb, red from [OIII])
+            returns the continuum-subtracted emission lines and the continuum
+
+            Parameters
+            ----------
+            wvl : `numpy array`
+                wavelength array
+            spectrum : `numpy array`
+                flux array, must be of the same dimesion as wvl
+
+            Returns
+            -------
+            eline: `numpy array`
+                continuum-subtracted spectrum
+            cont: `numpy array`
+                continuum
+
+        """
 
         # extract and subtract linear continuum in the Hb window
         # by defining two regions in the rest-frame
@@ -144,9 +199,23 @@ class Astrometry(Cube):
 
     def setup_eline_models(self, wvl, qsotable):
 
-        # set up astropy models from initial guess
-        # parameters in the AGNfit table
-        # returns the models as attributes
+        """
+            Set up astropy models from initial guess parameters
+            in the AGNfit table
+
+            Parameters
+            ----------
+            wvl : `numpy array`
+                wavelength array
+            qsotable : `astropy table`
+                contains emission line parameters
+
+            Returns
+            -------
+            eline_models: `dictionary`
+                contains the Gaussian 1D models generated from the input eline table paramters
+
+        """
 
         i = np.where(qsotable['parameter'] == 'amplitude')[0]
         j = np.where(qsotable['parameter'] == 'mean')[0]
@@ -164,10 +233,25 @@ class Astrometry(Cube):
 
     def setup_basis_models(self, gaussmodels, components):
 
-        # this function combines models for which the flux ratio
-        # is known and was already fixed in the AGNfit
-        # in this, basis_models contains all
-        # kinematically (and flux-) tied base components
+        """
+            This function combines models for which the flux ratio
+            is known and was already fixed in the AGNfit.
+            In this, basis_models contains all
+            kinematically (and flux-) tied base components
+
+            Parameters
+            ----------
+            gaussmodels : `astropy models`
+                emission line models
+            components : `strings`
+                names of the kinematic components which may contain several different emission
+                line components
+
+            Returns
+            -------
+            basis_models: `astropy models`
+                collection of kinematic components
+        """
 
         basis_models = type('', (), {})()
 
@@ -189,12 +273,27 @@ class Astrometry(Cube):
 
     def setup_basis_arrays(self, wvl, models):
 
-        # evaluates the model for a given wavelength array
-        # returns normalized spectrum for the base components
-        # i.e. broad, core_Hb, core_OIII, wing_Hb, wing_OIII
+        """
+            Evaluates the model for a given wavelength array
+            returns normalized spectrum for the base components
+            i.e. broad, core_Hb, core_OIII, wing_Hb, wing_OIII
 
-        # returns arrays that are normalized to the peak flux
-        # of the resp. component
+            returns arrays that are normalized to the peak flux
+            of the resp. component
+
+            Parameters
+            ----------
+            wvl : `numpy array`
+                wavelength array
+            models : `astropy models`
+                collection of kinematic components
+
+            Returns
+            -------
+            basis: `arrays`
+                collection of normalized spectrum of the
+                the respective kinematic component
+        """
 
         basis = type('', (), {})() # empty object to store spetra
 
@@ -210,7 +309,26 @@ class Astrometry(Cube):
 
     def fit_spectrum(self, wvl, spectrum, error):
 
-        # fit an individual spectrum with the basis
+        """
+            fit an individual spectrum with the basis
+
+            Parameters
+            ----------
+            wvl : `numpy array`
+                wavelength
+            spectrum : `numpy array`
+                spectrum, must have the same dimension as wvl
+            error : `numpy array`
+                error, must have the same dimension as wvl
+
+            Returns
+            -------
+            popt: `array`
+                Optimal values for the parameters so that the sum
+                of the squared residuals of f(xdata, *popt) - ydata is minimized.
+            model_spec: `array`
+                best-fitting model spectrum. Has the same dimension as wvl
+        """
 
         # Subtract continuum
         spec_eline, continuum = self.subtract_continuum(wvl,spectrum)
@@ -235,21 +353,55 @@ class Astrometry(Cube):
 
     def mock_spec(self, wvl, spectrum, error):
 
-        # generates an artifical spectrum by drawing a random flux from the
-        # gaussian probability distribution given by the flux measurement
-        # and its error at each wavelength
+        """
+            Generates an artifical spectrum by drawing a random flux from the
+            Gaussian probability distribution given by the flux measurement
+            and its error at each wavelength
 
-        new_spectrum = [np.random.normal(spectrum[i],error[i]) for i in np.arange(wvl.shape[0])]
+            Parameters
+            ----------
+            wvl : `numpy array`
+                wavelength
+            spectrum : `numpy array`
+                spectrum, must have the same dimension as wvl
+            error : `numpy array`
+                error, must have the same dimension as wvl
 
-        return np.array(new_spectrum)
+            Returns
+            -------
+            new_spectrum: `array`
+                mock spectrum, has the same dimension as wvl
+        """
+
+        new_spectrum = np.array([np.random.normal(spectrum[i],error[i]) for i in np.arange(wvl.shape[0])])
+
+        return new_spectrum
 
 
     def fit_cube(self, wvl, data, error):
 
-        # performs a linear fitting of the basis components to
-        # to each spectrum of the data cube
-        # returns array with shape [ata.shape[1],data.shape[2],#components]
-        # that contains flux maps of the individual components
+        """
+            Performs a linear fitting of the basis components
+            to each spectrum of the data cube
+
+            Parameters
+            ----------
+            wvl : `numpy array`
+                wavelength
+            spectrum : `numpy array`
+                spectrum, must have the same dimension as wvl
+            error : `numpy array`
+                error, must have the same dimension as wvl
+
+            Returns
+            -------
+            flux: `numpy array`
+                Collection of 2D surface brightness maps for the kinematic components.
+                Array has the shape [data.shape[1],data.shape[2],#components]
+            dflux: `numpy array`
+                Collection of 2D surface brightness errors for the kinematic components.
+                Has the same shape as flux.
+        """
 
         scalefactor_map = np.full([data.shape[1],data.shape[2],5], np.nan)
         dscalefactor_map = np.copy(scalefactor_map)
@@ -366,6 +518,17 @@ class Astrometry(Cube):
 
     def findpos(self):
 
+        """
+            Fits the PSF to the 2D light distribution for each of the kinematic components.
+
+            Returns
+            -------
+            models: `attributes`
+                contains (1) the image of the model surface brightness distribution and
+                (2) a tuple with the coordinates of the centroid
+        """
+
+
         models = type('', (), {})()
         for component in tqdm(self.components):
 
@@ -384,9 +547,15 @@ class Astrometry(Cube):
 
     def offset(self,component):
 
-        # this function computes the offset px
-        # and
-        # from the PSF centroids from the BLR
+        """
+            this function computes the offset px
+            and from the PSF centroids from the BLR
+
+            Parameters
+            ----------
+            component : `string`
+                component for which the offset from the AGN position is computed
+        """
 
         px = np.sqrt(  (self.model.broad.centroid[0] - getattr(self.model, component).centroid[0])**2 \
                      + (self.model.broad.centroid[1] - getattr(self.model, component).centroid[1])**2
@@ -399,7 +568,9 @@ class Astrometry(Cube):
 
     def print_result(self):
 
-        # print offset
+        """
+            Prints the spectroastrometry result
+        """
 
         for component in self.components:
 
@@ -434,7 +605,15 @@ class Astrometry(Cube):
 
     def write(self, path):
 
-        # write flux maps
+        """
+            Write flux maps
+
+            Parameters
+            ----------
+            path : `string`
+                output directory
+        """
+
         for component in self.components:
 
             fluxmap = getattr(astrometry.flux, component)

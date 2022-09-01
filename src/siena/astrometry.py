@@ -37,7 +37,6 @@ class Astrometry(Cube):
         path to the output file from the AGN fitting
     """
 
-
     def __init__(self, cubefile, eline_table, cz):
 
         self.cz = cz
@@ -54,7 +53,7 @@ class Astrometry(Cube):
                                     'FeII5018_medium','FeII5018_broad'],
                            'core_Hb':['Hb_core'],
                            'core_OIII':['OIII4959_core', 'OIII5007_core'],
-                           'wing_Hb':['Hb_wing'],
+                           #'wing_Hb':['Hb_wing'],
                            'wing_OIII':['OIII4959_wing', 'OIII5007_wing']
                   }
 
@@ -171,11 +170,6 @@ class Astrometry(Cube):
 
         """
 
-        # extract and subtract linear continuum in the Hb window
-        # by defining two regions in the rest-frame
-        # (blue from Hb, red from [OIII])
-        # returns the continuum-subtracted emission lines and the continuum
-
         continuum_rf = {1:[4750,4755], 4:[5080,5090]}
 
         iscont = np.zeros(wvl.shape).astype(bool)
@@ -190,9 +184,6 @@ class Astrometry(Cube):
         cont_model = fit(line_init, wvl[iscont], spectrum[iscont])
         cont = cont_model(wvl)
         eline = spectrum - cont
-
-        plt.plot(wvl, cont)
-        plt.plot(wvl, spectrum)
 
 
         return eline, cont
@@ -223,10 +214,12 @@ class Astrometry(Cube):
 
         eline_models = type('', (), {})() # empty object
 
-        for i in self.elines:
-            param = qsotable[i]
-            gauss = models.Gaussian1D(param[0],param[1],param[2])
-            setattr(eline_models, i, gauss)
+        for eline in self.elines:
+            param = qsotable[eline]
+            # adopt model if parameters are finite
+            if ~(np.any(np.isnan(param)) or np.any((param==0))):
+                gauss = models.Gaussian1D(param[0],param[1],param[2])
+                setattr(eline_models, eline, gauss)
 
         return eline_models
 
@@ -341,7 +334,7 @@ class Astrometry(Cube):
 
         b = spec_eline
         w = 1/error
-        wmatrix = np.full((5,w.shape[0]),w).T
+        wmatrix = np.full((len(self.components),w.shape[0]),w).T
 
         popt, rnorm= nnls(A*wmatrix, b*w)
         model_spec = np.zeros(spec_eline.shape)
@@ -403,7 +396,7 @@ class Astrometry(Cube):
                 Has the same shape as flux.
         """
 
-        scalefactor_map = np.full([data.shape[1],data.shape[2],5], np.nan)
+        scalefactor_map = np.full([data.shape[1],data.shape[2],len(self.components)], np.nan)
         dscalefactor_map = np.copy(scalefactor_map)
 
         for i in tqdm(np.arange(data.shape[1])):
@@ -411,7 +404,7 @@ class Astrometry(Cube):
 
                 spec = data[:,i,j]
                 err = error[:,i,j]
-                error_expanded = np.full((5,err.shape[0]),err).T
+                error_expanded = np.full((len(self.components),err.shape[0]),err).T
 
                 # linear regression
                 # fit use fluxes as fitparameter rather than amplitudes!
@@ -419,7 +412,7 @@ class Astrometry(Cube):
                 scalefactor_map[i,j] = scalefactor
 
                 # MC error estimation
-                scalefactor_mcmc=np.zeros((30,5))
+                scalefactor_mcmc=np.zeros((30,len(self.components)))
                 for k in np.arange(30):
                     spec_mcmc = self.mock_spec(wvl,spec,err)
                     scalefactork,_ =  self.fit_spectrum(wvl, spec_mcmc, err)
@@ -548,7 +541,7 @@ class Astrometry(Cube):
     def offset(self,component):
 
         """
-            this function computes the offset px
+            This function computes the offset px
             and from the PSF centroids from the BLR
 
             Parameters
@@ -569,7 +562,7 @@ class Astrometry(Cube):
     def print_result(self):
 
         """
-            Prints the spectroastrometry result
+            Prints the spectroastrometry result to console
         """
 
         for component in self.components:
@@ -638,3 +631,400 @@ class Astrometry(Cube):
             hdul[4].header['extname'] = 'Residuals'
 
             hdul.writeto(path+'Mrk1044_'+component+'.fits', overwrite=True)
+
+
+
+
+    def setup_rcparams(self):
+
+        """
+            Specifies the runtime configuration settings for matplotlib.
+            This function also defines a number of line styles.
+        """
+
+        mult = 1
+        mpl.rcParams.update({'font.size': 15*mult})
+        mpl.rcParams['legend.fontsize'] = 15*mult
+        mpl.rcParams['axes.linewidth'] = 1
+        mpl.rcParams['xtick.labelsize'] = 15*mult
+        mpl.rcParams['ytick.labelsize'] = 15*mult
+        mpl.rcParams['xtick.major.size'] = 5
+        mpl.rcParams['ytick.major.size'] = 5
+        mpl.rcParams['xtick.major.width'] = 1
+        mpl.rcParams['ytick.major.width'] = 1
+        mpl.rcParams['xtick.minor.size'] = 3
+        mpl.rcParams['ytick.minor.size'] = 3
+        mpl.rcParams['xtick.minor.width'] = 1
+        mpl.rcParams['ytick.minor.width'] = 1
+        mpl.rcParams['xtick.direction'] = 'in'
+        mpl.rcParams['ytick.direction'] = 'in'
+        mpl.rcParams['xtick.bottom'] = True
+        mpl.rcParams['xtick.top'] = True
+        mpl.rcParams['ytick.left'] = True
+        mpl.rcParams['ytick.right'] = True
+        mpl.rcParams['axes.labelsize'] = 15*mult
+        mpl.rcParams['text.usetex'] = True
+
+        self.ls = {
+         'loosely dotted':        (0, (1, 10)),
+         'dotted':                (0, (1, 1)),
+         'densely dotted':        (0, (1, 1)),
+
+         'loosely dashed':        (0, (5, 10)),
+         'dashed':                (0, (5, 5)),
+         'densely dashed':        (0, (5, 1)),
+
+         'loosely dashdotted':    (0, (3, 10, 1, 10)),
+         'dashdotted':            (0, (3, 5, 1, 5)),
+         'densely dashdotted':    (0, (3, 1, 1, 1)),
+
+         'dashdotdotted':         (0, (3, 5, 1, 5, 1, 5)),
+         'loosely dashdotdotted': (0, (3, 10, 1, 10, 1, 10)),
+         'densely dashdotdotted': (0, (3, 1, 1, 1, 1, 1))
+         }
+
+
+
+
+    def plot_spectrum(self,coor=None,gs=None,savefig=False):
+
+        """
+            Plots a spectrum from the minicube
+
+            Parameters
+            ----------
+            coor : `tuple`
+                (x,y) coordinates from where the spectrum in the cube will be extracted
+            gs : `matplotlib.gridspec.GridSpec` [optional]
+                optional, existing GridSpec to which the plot will be added
+            savefig : `boolean` [optional]
+                saves plot as .png file
+        """
+
+        # get base spectra (normalized to 1 erg-scm-2) and
+        # approx. rescale to maximum flux density of the AGN spectrum
+        broad_init = self.basis.broad
+        broad_init = broad_init/np.nanmax(self.basis.broad)*.3*np.nanmax(self.qso_spectrum)
+        core_init = self.basis.core_Hb+self.basis.core_OIII
+        core_init = core_init/np.nanmax(core_init)*.3*np.max(self.qso_spectrum)
+        wing_init = self.basis.wing_OIII#self.basis.wing_Hb+
+        wing_init = wing_init/np.nanmax(wing_init)*.3*np.max(self.qso_spectrum)
+
+        # fit result, scaled to qso_spectrum
+        broad_fit =  self.flux.broad[coor[0],coor[1]]*self.basis.broad
+        core_fit =   self.flux.core_Hb[coor[0],coor[1]]*self.basis.core_Hb \
+               + self.flux.core_OIII[coor[0],coor[1]]*self.basis.core_OIII
+        wing_fit =   self.flux.wing_OIII[coor[0],coor[1]]*self.basis.wing_OIII
+                    #+ self.flux.wing_Hb[coor[0],coor[1]]*self.basis.wing_Hb \
+        _,continuum_fit = self.subtract_continuum(self.wvl, self.cube.data[:,coor[0],coor[1]])
+        model_fit = continuum_fit + broad_fit + core_fit + wing_fit
+
+        spec = self.cube.data[:,coor[0],coor[1]]
+        err = self.cube.error[:,coor[0],coor[1]]
+        res = spec-model_fit
+
+
+        #         *** plotting***
+
+        # init model
+
+        xlabel=r'rest-frame wavelength $\lambda \, [\rm{\AA}]$'
+        ylabel=r'$f_\lambda \,\, [10^{-16} \rm{erg/s/cm}^{2}/\rm{A}]$'
+        rwindow=5
+
+        if gs==None:
+
+            fig,axes=plt.subplots(figsize=(8,8),dpi=100)
+            gs = gridspec.GridSpec(2,1, height_ratios = [1, 1.2], hspace=0)
+
+        gs0 = gridspec.GridSpecFromSubplotSpec(1, 1,subplot_spec = gs[0],hspace=0)
+        gs1 = gridspec.GridSpecFromSubplotSpec(2, 1,subplot_spec = gs[1], height_ratios = [rwindow, 1],hspace=0)
+
+
+        ax0 = plt.subplot(gs0[0])
+        ax0.step(self.wvl+.5*1.25,self.qso_spectrum,
+                 linewidth=1, color='k', label='AGN')
+        ax0.plot(self.wvl,broad_init, color='cornflowerblue',
+                 linestyle=self.ls['densely dashed'], linewidth=.8, label = 'broad')
+        ax0.plot(self.wvl,core_init,  color='lightcoral',
+                 linestyle=self.ls['densely dashdotted'], linewidth=.8, label='core')
+        ax0.plot(self.wvl,wing_init,  color='limegreen',
+                 linestyle=self.ls['densely dashdotdotted'], linewidth=.8, label='wing')
+        ax0.legend(fontsize=10)
+        ax0.set_xlim(min(self.wvl),max(self.wvl))
+        ax0.set_ylim(1e-4*np.nanmax(self.qso_spectrum))
+
+
+
+        # fit result
+        ax1 = plt.subplot(gs1[0])
+        ax1.step(self.wvl+.5*1.25, spec, color='k', linewidth=1, label='AGN')
+        ax1.fill_between(self.wvl,broad_fit, facecolor='cornflowerblue', label = 'broad')
+        ax1.fill_between(self.wvl,core_fit, facecolor='lightcoral', label='core')
+        ax1.fill_between(self.wvl,wing_fit, facecolor='limegreen', label='wing')
+        ax1.plot(self.wvl, model_fit, linewidth=1 , c='firebrick', label = 'model')
+        ax1.legend(fontsize=10)
+        ax1.set_xlim(min(self.wvl),max(self.wvl))
+        ax1.set_ylim(1e-4*np.nanmax(spec))
+
+
+        # residuals
+        ax2 = plt.subplot(gs1[1])
+        ax2.step(self.wvl+.5*1.25, res/err, color='k', linewidth=1)
+        ax2.fill_between(self.wvl+.5*1.25, -3,3, color='firebrick', edgecolor='white', alpha=.2)
+        ax2.set_xlim(min(self.wvl),max(self.wvl))
+        ax2.set_ylim(-6,6)
+
+
+        # plot parameters
+
+        # ticks
+        ax0.tick_params(axis='both',labelbottom=False)
+        ax1.tick_params(axis='both',labelbottom=False)
+
+        # labels
+        if gs==None:
+            ax0.set_ylabel(r'$f_\lambda \,\, [10^{-16} \rm{erg/s/cm}^{2}/\rm{\AA}]$')
+            ax1.set_ylabel(r'$f_\lambda \,\, [10^{-16} \rm{erg/s/cm}^{2}/\rm{\AA}]$')
+        else:
+            ax1.set_ylabel(r'$f_\lambda \,\, [10^{-16} \rm{erg/s/cm}^{2}/\rm{\AA}]$')
+            ax1.yaxis.set_label_coords(-.12,.95)
+        ax2.set_xlabel(xlabel)
+        ax2.set_ylabel(r'$\frac{\rm residual}{\rm error}$')
+
+        ax0.xaxis.set_minor_locator(AutoMinorLocator())
+        ax0.yaxis.set_minor_locator(AutoMinorLocator())
+        ax1.xaxis.set_minor_locator(AutoMinorLocator())
+        ax1.yaxis.set_minor_locator(AutoMinorLocator())
+        ax2.xaxis.set_minor_locator(AutoMinorLocator())
+        ax2.yaxis.set_minor_locator(AutoMinorLocator())
+
+
+
+        if savefig:
+            plt.savefig('Figures/spectroastrometry_spec.png',bbox_inches='tight', dpi=300)
+
+
+
+    def plot_maps(self,gs=None,savefig=False):
+
+        """
+            Plots maps of the kinematic components
+
+            Parameters
+            ----------
+            gs : `matplotlib.gridspec.GridSpec` [optional]
+                existing GridSpec to which the plot will be added
+            savefig : `boolean` [optional]
+                saves plot as .png file
+        """
+
+        extent=np.array([-(self.cube.ncrop)/2,(self.cube.ncrop)/2,
+                             -(self.cube.ncrop)/2,(self.cube.ncrop)/2
+                            ]
+                           )
+
+        extent*=0.025*1e3 # implement cellsize in cube!
+
+
+        if gs==None:
+            fig = plt.figure(figsize=(9, 6), dpi=150)
+            gs = gridspec.GridSpec(3,3,wspace=.07, hspace=.06, width_ratios=[1,1,1.1])
+
+
+        # Flux maps
+
+        component='broad'
+        fluxmap = getattr(self.flux, component)
+        ax00 = plt.subplot(gs[0,0])
+        cmap = mpl.cm.get_cmap('gist_earth_r')
+        im = ax00.imshow(fluxmap/np.nanmax(fluxmap), origin='lower',extent=extent,cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        my_scalebar(ax00, cz, c='k', loc=(.5,.22), distance='50pc')
+
+        component='core_OIII'
+        fluxmap = getattr(self.flux, component)
+        ax01 = plt.subplot(gs[0,1])
+        cmap = mpl.cm.get_cmap('gist_earth_r')
+        im = ax01.imshow(fluxmap/np.nanmax(fluxmap), origin='lower',extent=extent,cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        my_scalebar(ax01, cz, c='k', loc=(.5,.22), distance='50pc')
+
+        component='wing_OIII'
+        fluxmap = getattr(self.flux, component)
+        ax02 = plt.subplot(gs[0,2])
+        cmap = mpl.cm.get_cmap('gist_earth_r')
+        im = ax02.imshow(fluxmap/np.nanmax(fluxmap), origin='lower',extent=extent,cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        #my_scalebar(ax02, cz, c='k', loc=(.5,.22), distance='50pc')
+        cbarlabel = r'$ \Sigma$'
+        colorbar(im,label=cbarlabel)
+
+
+        # PSF maps
+
+        component='broad'
+        fluxmap = getattr(self.model, component).image
+        ax10 = plt.subplot(gs[1,0])
+        cmap = mpl.cm.get_cmap('gist_earth_r')
+        im = ax10.imshow(fluxmap/np.nanmax(fluxmap), origin='lower',extent=extent,cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        #my_scalebar(ax10, cz, c='k', loc=(.5,.18), distance='50pc')
+
+        component='core_OIII'
+        fluxmap = getattr(self.model, component).image
+        ax11 = plt.subplot(gs[1,1])
+        cmap = mpl.cm.get_cmap('gist_earth_r')
+        im = ax11.imshow(fluxmap/np.nanmax(fluxmap), origin='lower',extent=extent,cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        #my_scalebar(ax10, cz, c='k', loc=(.5,.18), distance='50pc')
+
+        component='wing_OIII'
+        fluxmap = getattr(self.model, component).image
+        ax12 = plt.subplot(gs[1,2])
+        cmap = mpl.cm.get_cmap('gist_earth_r')
+        im = ax12.imshow(fluxmap/np.nanmax(fluxmap), origin='lower',extent=extent,cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        #my_scalebar(ax12, cz, c='k', loc=(.5,.18), distance='50pc')
+        cbarlabel = r'$ \Sigma$'
+        colorbar(im,label=cbarlabel)
+
+        # Residual maps
+
+        component='broad'
+        fluxmap = getattr(self.model, component).image
+        dfluxmap = getattr(self.dflux, component)
+        residuals = (  getattr(self.flux, component)
+                     - getattr(self.model, component).image
+                    ) /getattr(self.flux, component)
+        ax20 = plt.subplot(gs[2,0])
+        cmap = mpl.cm.get_cmap('seismic')
+        im = ax20.imshow(residuals, origin='lower',extent=extent,cmap=cmap,vmin=-1, vmax=1)
+        my_scalebar(ax20, cz, c='k', loc=(.5,.22), distance='50pc')
+
+        component='core_OIII'
+        fluxmap = getattr(self.flux, component)
+        dfluxmap = getattr(self.dflux, component)
+        residuals = (  getattr(self.flux, component)
+                     - getattr(self.model, component).image
+                    ) /getattr(self.flux, component)
+        ax21 = plt.subplot(gs[2,1])
+        cmap = mpl.cm.get_cmap('seismic')
+        im = ax21.imshow(residuals, origin='lower',extent=extent,cmap=cmap,vmin=-1, vmax=1)
+        my_scalebar(ax21, cz, c='k', loc=(.5,.22), distance='50pc')
+
+        component='wing_OIII'
+        fluxmap = getattr(self.flux, component)
+        dfluxmap = getattr(self.dflux, component)
+        residuals = (  getattr(self.flux, component)
+                     - getattr(self.model, component).image
+                    ) /getattr(self.flux, component)
+        ax22 = plt.subplot(gs[2,2])
+        cmap = mpl.cm.get_cmap('seismic')
+        im = ax22.imshow(residuals, origin='lower',extent=extent,cmap=cmap,vmin=-1, vmax=1)
+        my_scalebar(ax22, cz, c='k', loc=(.5,.22), distance='50pc')
+        cbarlabel = 'residual/error'
+        colorbar(im,label=cbarlabel)
+
+
+
+        # draw borad centroids
+        ax00.scatter(*self.model.broad.centroid[:2]*0.025*1e3, marker='x', c='firebrick', s=40)
+        ax01.scatter(*self.model.core_Hb.centroid[:2]*0.025*1e3, marker='x', c='gold', s=40)
+        ax01.scatter(*self.model.broad.centroid[:2]*0.025*1e3, marker='x', c='firebrick', s=40)
+        ax02.scatter(*self.model.wing_OIII.centroid[:2]*0.025*1e3, marker='x', c='gold', s=40, label='centroid')
+        ax02.scatter(*self.model.broad.centroid[:2]*0.025*1e3, marker='x', c='firebrick', s=40, label='AGN')
+        legend = ax02.legend(fontsize=8, bbox_to_anchor=(0.95,0.3),framealpha=.5)
+        legend.get_frame().set_alpha(.4)
+
+        # annotations
+        ax00.annotate('(a)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+
+        ax00.annotate(r'H$\beta$ broad',  xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
+        ax00.annotate(r'Data',  xy=(0.9, .7), fontsize=14, ha='right', xycoords='axes fraction')
+        ax01.annotate('(b)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        ax01.annotate(r'[O$\:$III] core', xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
+        ax02.annotate('(c)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        ax02.annotate(r'[O$\:$III] wing', xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
+        ax10.annotate('(d)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        ax10.annotate('Model', ha='right',   xy=(0.9, 0.85), fontsize=14, xycoords='axes fraction')
+        ax11.annotate('(e)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        ax12.annotate('(f)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        ax20.annotate('(g)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        ax20.annotate('Residual', ha='right',   xy=(0.9, 0.85), fontsize=14, xycoords='axes fraction')
+        ax21.annotate('(h)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        ax22.annotate('(i)', ha='left',   xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+
+
+        # switch on minor ticks
+        ax00.xaxis.set_minor_locator(AutoMinorLocator())
+        ax00.yaxis.set_minor_locator(AutoMinorLocator())
+        ax01.xaxis.set_minor_locator(AutoMinorLocator())
+        ax01.yaxis.set_minor_locator(AutoMinorLocator())
+        ax02.xaxis.set_minor_locator(AutoMinorLocator())
+        ax02.yaxis.set_minor_locator(AutoMinorLocator())
+        ax10.xaxis.set_minor_locator(AutoMinorLocator())
+        ax10.yaxis.set_minor_locator(AutoMinorLocator())
+        ax11.xaxis.set_minor_locator(AutoMinorLocator())
+        ax11.yaxis.set_minor_locator(AutoMinorLocator())
+        ax12.xaxis.set_minor_locator(AutoMinorLocator())
+        ax12.yaxis.set_minor_locator(AutoMinorLocator())
+        ax20.xaxis.set_minor_locator(AutoMinorLocator())
+        ax20.yaxis.set_minor_locator(AutoMinorLocator())
+        ax21.xaxis.set_minor_locator(AutoMinorLocator())
+        ax21.yaxis.set_minor_locator(AutoMinorLocator())
+        ax22.xaxis.set_minor_locator(AutoMinorLocator())
+        ax22.yaxis.set_minor_locator(AutoMinorLocator())
+
+
+        ax01.tick_params(axis='both', labelleft=False)
+        ax02.tick_params(axis='both', labelleft=False)
+        ax11.tick_params(axis='both', labelleft=False)
+        ax12.tick_params(axis='both', labelleft=False)
+        ax21.tick_params(axis='both', labelleft=False)
+        ax22.tick_params(axis='both', labelleft=False)
+        ax00.tick_params(axis='both', labelbottom=False)
+        ax01.tick_params(axis='both', labelbottom=False)
+        ax02.tick_params(axis='both', labelbottom=False)
+        ax10.tick_params(axis='both', labelbottom=False)
+        ax11.tick_params(axis='both', labelbottom=False)
+        ax12.tick_params(axis='both', labelbottom=False)
+
+        ax00.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        ax10.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        ax20.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        ax20.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
+        ax21.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
+        ax22.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
+
+        if savefig:
+            plt.savefig('Output/spectroastrometry_maps.png',bbox_inches='tight')
+
+
+    def plot_all(self,coor, savefig=False, path='.'):
+
+        """
+            Plots both spectra before/after fitting together with the
+            surface brightness maps of the kinematic components
+
+            Parameters
+            ----------
+            coor : `tuple`
+                (x,y) coordinates from where the spectrum in the cube will be extracted
+        """
+
+        fig = plt.figure(figsize=(15, 7), dpi=150)
+        outer = gridspec.GridSpec(1,2,wspace=0.2, width_ratios=[2.5,3])
+
+        inner1 = gridspec.GridSpecFromSubplotSpec(2,1, subplot_spec = outer[0],
+                                                  height_ratios = [1, 1.2], hspace=0)
+        inner2 = gridspec.GridSpecFromSubplotSpec(3,3, subplot_spec = outer[1],
+                                                  wspace=.07, hspace=.06, width_ratios=[1,1,1.1])
+
+        self.plot_spectrum(coor=[2,2],gs=inner1,savefig=False)
+        self.plot_maps(gs=inner2,savefig=False)
+
+        if savefig:
+            plt.savefig(path+'/spectroastrometry.png',bbox_inches='tight')
+
+        return fig

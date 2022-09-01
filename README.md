@@ -6,6 +6,7 @@ It performs a multi-Gaussian fit of the AGN emission line spectrum and traces di
 ESO VLT/MUSE. The technique can in principle be to 3D cubes obtained with other IFU instruments.
 
 ## Installation instructions
+SIENA is currently being developed.
 
 ## Basic usage and commands
 

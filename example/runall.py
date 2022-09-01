@@ -1,5 +1,6 @@
 from siena import cube
-from siena import Astrometry
+from siena.astrometry import Astrometry
+import siena
 
 cz = 4920
 

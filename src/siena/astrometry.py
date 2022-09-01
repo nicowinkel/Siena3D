@@ -2,6 +2,7 @@
 This file contains the spectroastrometry class
 """
 
+from .cube import Cube
 import numpy as np
 import glob
 import matplotlib.pyplot as plt
@@ -609,10 +610,10 @@ class Astrometry(Cube):
 
         for component in self.components:
 
-            fluxmap = getattr(astrometry.flux, component)
-            dfluxmap = getattr(astrometry.dflux, component)
-            modelmap = getattr(astrometry.model, component).image
-            residuals = fluxmap-modelmap/getattr(astrometry.dflux, component)
+            fluxmap = getattr(self.flux, component)
+            dfluxmap = getattr(self.dflux, component)
+            modelmap = getattr(self.model, component).image
+            residuals = fluxmap-modelmap/getattr(self.dflux, component)
 
             hdu_primary = fits.PrimaryHDU()
             hdul = fits.HDUList([hdu_primary])
@@ -622,8 +623,8 @@ class Astrometry(Cube):
             hdul.append(fits.ImageHDU(residuals))
 
 
-            for i in astrometry.cube.header:
-                hdul[1].header[i] = astrometry.cube.header[i]
+            for i in self.cube.header:
+                hdul[1].header[i] = self.cube.header[i]
 
             hdul[1].header['extname'] = 'Flux'
             hdul[2].header['extname'] = 'Flux_err'
@@ -1025,6 +1026,6 @@ class Astrometry(Cube):
         self.plot_maps(gs=inner2,savefig=False)
 
         if savefig:
-            plt.savefig(path+'/spectroastrometry.png',bbox_inches='tight')
+            plt.savefig(path+'/spectroself.png',bbox_inches='tight')
 
         return fig

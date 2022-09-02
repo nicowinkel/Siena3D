@@ -8,25 +8,22 @@ import sys
 import os
 import glob
 import numpy as np
+from scipy.optimize import nnls
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as patches
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 from matplotlib.colors import LogNorm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.optimize import nnls
 from astropy.io import fits
 from astropy.table import Table
 from astropy.modeling import models, fitting
 from astropy.cosmology import WMAP9 as cosmo
 from astropy import units as u
-from specutils import Spectrum1D, SpectralRegion
-from maoppy.psfmodel import Psfao, psffit
-from maoppy.instrument import muse_nfm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from tqdm import tqdm
-import warnings
-from textwrap import wrap
+
 
 if sys.version_info < (3, 9):
     # importlib.resources either doesn't exist or lacks the files()
@@ -35,6 +32,76 @@ if sys.version_info < (3, 9):
 else:
     # importlib.resources has files(), so use that:
     import importlib.resources as importlib_resources
+
+
+def colorbar(mappable, orientation="vertical", ticks=None, label=None, fontsize=14, format=None):
+
+    ax = mappable.axes
+    fig = ax.figure
+    divider = make_axes_locatable(ax)
+    if orientation == 'vertical':
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cax.tick_params(length=5, width=1, labelsize=.8 * fontsize)
+
+        cb = fig.colorbar(mappable, cax=cax, orientation=orientation, format=format)
+        cb.set_label(label, labelpad=5, fontsize=fontsize)
+
+    elif orientation == 'horizontal':
+        cax = divider.append_axes("top", size="5%", pad=0.05)
+        cax.xaxis.set_label_position('top')
+        cax.xaxis.set_ticks_position('top')
+        cax.tick_params(bottom=False, top=True, length=5, width=1, pad=-22, labelsize=.8 * fontsize)
+
+        cb = fig.colorbar(mappable, cax=cax, orientation=orientation, format=format)
+        cb.set_label(label, labelpad=-45, fontsize=fontsize)
+
+    return cb
+
+def my_scalebar(ax, cz, loc=(0.5, 0.5), c='k', distance='50pc'):
+    xextent = ax.get_xlim()[1] - ax.get_xlim()[0]
+    yextent = ax.get_ylim()[1] - ax.get_ylim()[0]
+
+    arcsec_per_kpc = 1 / cosmo.kpc_proper_per_arcmin(cz / 3e5).value * 60 * 1e3
+    size_vertical = 1e-2 * yextent
+
+    height = 3e-2 * yextent
+
+    if distance == '50pc':
+        width = .05 * arcsec_per_kpc
+        label = r'$50\,$pc'
+
+    elif distance == '100pc':
+        width = .1 * arcsec_per_kpc
+        label = r'$100\,$pc'
+
+    elif distance == '500pc':
+        width = .5 * arcsec_per_kpc
+        label = r'$500\,$pc'
+
+    elif distance == '1kpc':
+        width = 1 * arcsec_per_kpc
+        label = r'$1\,$kpc'
+
+    elif distance == '5kpc':
+        width = 5 * arcsec_per_kpc
+        label = r'$5\,$kpc'
+
+    elif distance == '10kpc':
+        width = 10 * arcsec_per_kpc
+        label = r'$10\,$kpc'
+
+    else:
+        raise ValueError('Specify distance scale!')
+
+    xy = (loc[0] - width / xextent / 2, loc[1] - height / yextent / 2)
+
+    rect = patches.Rectangle(xy, width / xextent, height / yextent, linewidth=1, edgecolor=c,
+                             facecolor=c, transform=ax.transAxes)
+
+    ax.add_patch(rect)
+
+    tloc = (loc[0], xy[1] - 3 * (height / yextent))
+    ax.text(*tloc, label, c=c, fontsize=15, ha='center', va='center', transform=ax.transAxes)
 
 
 class Astrometry(Cube):
@@ -52,9 +119,10 @@ class Astrometry(Cube):
 
     def __init__(self, cubefile, eline_table, cz):
 
-        self.print_logo()
         self.cz = cz
         self.redshift = self.cz / 3e5
+
+        # setup emission lines and components to which they belong
         self.elines = ['Hb_broad', 'Hb_medium', 'Hb_core', 'Hb_wing',
                        'FeII4924_medium', 'FeII4924_broad',
                        'FeII5018_medium', 'FeII5018_broad',
@@ -71,6 +139,8 @@ class Astrometry(Cube):
                            'wing_OIII': ['OIII4959_wing', 'OIII5007_wing']
                            }
 
+        # setup working data
+        self.print_logo()
         self.setup_rcparams()
         self.cube = Cube()
         self.cube.loadFitsCube(cubefile, cz=self.cz, extension_hdr=1, extension_data=1, extension_error=2)
@@ -78,31 +148,7 @@ class Astrometry(Cube):
         self.wvl = self.cube.wvl
         self.qso_loc, self.qso_spectrum, self.qso_error = self.get_qso_spectrum(self.cube.data, self.cube.error)
         self.qso_eline, self.continuum = self.subtract_continuum(self.wvl, self.qso_spectrum)
-
-        # read in best fit parameters QSO spectrum model
         self.qsotable = self.read_in_table(eline_table)
-
-        # initialize astropy models from best fit parameters
-        self.eline_models = self.setup_eline_models(self.wvl, self.qsotable)
-
-        # combine astropy models
-        print('Setup basis')
-        self.basis_models = self.setup_basis_models(self.eline_models, self.components)
-
-        # initialize arrays containing normalized spectra
-        self.basis = self.setup_basis_arrays(self.wvl, self.basis_models)
-
-        # fit components to cube
-        print('Fit components to cube')
-        self.fluxmap, self.errmap = self.fit_cube(self.wvl, self.cube.data, self.cube.error)
-
-        # find PSF model parameters from 'broad' component
-        print('Find PSF model parameters')
-        self.PSFmodel = self.get_PSFmodel()
-
-        # find centroid for each of the kinematic components' light distribution
-        print('Find centroids')
-        self.fluxmodel, self.loc = self.get_loc()
 
     def print_logo(self):
 
@@ -514,8 +560,8 @@ class Astrometry(Cube):
 
         # Initialize PSF model
         model_init = models.Moffat2D(amplitude=np.nanmax(image),
-                                     x_0=image.shape[0],
-                                     y_0=image.shape[1],
+                                     x_0=image.shape[0]/2,
+                                     y_0=image.shape[1]/2,
                                      gamma=1,
                                      alpha=1)
 
@@ -572,11 +618,15 @@ class Astrometry(Cube):
                 loc_err = (np.nan, np.nan)
 
             setattr(fluxmodels, component, img_model)
-            setattr(locs, component, (model.x_0, model.y_0, loc_err[0], loc_err[1]))
+            setattr(locs, component, np.array([model.x_0.value, model.y_0.value,
+                                               loc_err[0], loc_err[1]
+                                               ]
+                                              )
+                    )
 
         return fluxmodels, locs
 
-    def offset(self, component):
+    def get_offset(self, component):
 
         """
             This function computes the offset px
@@ -600,12 +650,12 @@ class Astrometry(Cube):
     def print_result(self):
 
         """
-            Prints the spectroastrometry result to console
+            Print the spectroastrometry result
         """
 
         for component in self.components:
             # [px]
-            px, dpx = self.offset(component)
+            px, dpx = self.get_offset(component)
 
             # [arcsec]
             arcsec = px * 0.025
@@ -633,6 +683,15 @@ class Astrometry(Cube):
                                                              )
                   )
 
+    def makedir(self,path='.'):
+        """
+           Creates output directory
+        """
+        if not os.path.exists(path+'/Output/'):
+            os.makedirs(path+'/Output/')
+
+        return None
+
     def write(self, path):
 
         """
@@ -644,11 +703,13 @@ class Astrometry(Cube):
                 output directory
         """
 
+        self.makedir(path)
+
         for component in self.components:
 
             fluxmap = getattr(self.fluxmap, component)
             dfluxmap = getattr(self.errmap, component)
-            modelmap = getattr(self.fluxmodel, component).image
+            modelmap = getattr(self.fluxmodel, component)
             residuals = fluxmap - modelmap / getattr(self.errmap, component)
 
             hdu_primary = fits.PrimaryHDU()
@@ -663,10 +724,11 @@ class Astrometry(Cube):
 
             hdul[1].header['extname'] = 'Flux'
             hdul[2].header['extname'] = 'Flux_err'
-            hdul[3].header['extname'] = 'PSFmodel'
+            hdul[3].header['extname'] = 'Model'
             hdul[4].header['extname'] = 'Residuals'
 
-            hdul.writeto(path + 'Mrk1044_' + component + '.fits', overwrite=True)
+            hdul.writeto(path + '/Output/component + '.fits', overwrite=True)
+
 
     ########## Plotting #########
     def setup_rcparams(self):
@@ -858,7 +920,7 @@ class Astrometry(Cube):
         cmap = mpl.cm.get_cmap('gist_earth_r')
         im = ax00.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                          norm=LogNorm(vmin=2e-2, vmax=1))
-        my_scalebar(ax00, cz, c='k', loc=(.5, .22), distance='50pc')
+        my_scalebar(ax00, self.cz, c='k', loc=(.5, .22), distance='50pc')
 
         component = 'core_OIII'
         fluxmap = getattr(self.fluxmap, component)
@@ -866,7 +928,7 @@ class Astrometry(Cube):
         cmap = mpl.cm.get_cmap('gist_earth_r')
         im = ax01.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                          norm=LogNorm(vmin=2e-2, vmax=1))
-        my_scalebar(ax01, cz, c='k', loc=(.5, .22), distance='50pc')
+        my_scalebar(ax01, self.cz, c='k', loc=(.5, .22), distance='50pc')
 
         component = 'wing_OIII'
         fluxmap = getattr(self.fluxmap, component)
@@ -874,81 +936,75 @@ class Astrometry(Cube):
         cmap = mpl.cm.get_cmap('gist_earth_r')
         im = ax02.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                          norm=LogNorm(vmin=2e-2, vmax=1))
-        # my_scalebar(ax02, cz, c='k', loc=(.5,.22), distance='50pc')
+        # my_scalebar(ax02, self.cz, c='k', loc=(.5,.22), distance='50pc')
         cbarlabel = r'$ \Sigma$'
         colorbar(im, label=cbarlabel)
 
         # PSF maps
 
         component = 'broad'
-        fluxmap = getattr(self.fluxmodel, component).image
+        fluxmap = getattr(self.fluxmodel, component)
         ax10 = plt.subplot(gs[1, 0])
         cmap = mpl.cm.get_cmap('gist_earth_r')
         im = ax10.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                          norm=LogNorm(vmin=2e-2, vmax=1))
-        # my_scalebar(ax10, cz, c='k', loc=(.5,.18), distance='50pc')
+        # my_scalebar(ax10, self.cz, c='k', loc=(.5,.18), distance='50pc')
 
         component = 'core_OIII'
-        fluxmap = getattr(self.fluxmodel, component).image
+        fluxmap = getattr(self.fluxmodel, component)
         ax11 = plt.subplot(gs[1, 1])
         cmap = mpl.cm.get_cmap('gist_earth_r')
         im = ax11.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                          norm=LogNorm(vmin=2e-2, vmax=1))
-        # my_scalebar(ax10, cz, c='k', loc=(.5,.18), distance='50pc')
+        # my_scalebar(ax10, self.cz, c='k', loc=(.5,.18), distance='50pc')
 
         component = 'wing_OIII'
-        fluxmap = getattr(self.fluxmodel, component).image
+        fluxmap = getattr(self.fluxmodel, component)
         ax12 = plt.subplot(gs[1, 2])
         cmap = mpl.cm.get_cmap('gist_earth_r')
         im = ax12.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                          norm=LogNorm(vmin=2e-2, vmax=1))
-        # my_scalebar(ax12, cz, c='k', loc=(.5,.18), distance='50pc')
+        # my_scalebar(ax12, self.cz, c='k', loc=(.5,.18), distance='50pc')
         cbarlabel = r'$ \Sigma$'
         colorbar(im, label=cbarlabel)
 
         # Residual maps
 
         component = 'broad'
-        fluxmap = getattr(self.fluxmodel, component).image
-        dfluxmap = getattr(self.errmap, component)
         residuals = (getattr(self.fluxmap, component)
-                     - getattr(self.fluxmodel, component).image
+                     - getattr(self.fluxmodel, component)
                      ) / getattr(self.fluxmap, component)
         ax20 = plt.subplot(gs[2, 0])
         cmap = mpl.cm.get_cmap('seismic')
         im = ax20.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
-        my_scalebar(ax20, cz, c='k', loc=(.5, .22), distance='50pc')
+        my_scalebar(ax20, self.cz, c='k', loc=(.5, .22), distance='50pc')
 
         component = 'core_OIII'
-        fluxmap = getattr(self.fluxmap, component)
-        dfluxmap = getattr(self.errmap, component)
         residuals = (getattr(self.fluxmap, component)
-                     - getattr(self.fluxmodel, component).image
+                     - getattr(self.fluxmodel, component)
                      ) / getattr(self.fluxmap, component)
         ax21 = plt.subplot(gs[2, 1])
         cmap = mpl.cm.get_cmap('seismic')
         im = ax21.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
-        my_scalebar(ax21, cz, c='k', loc=(.5, .22), distance='50pc')
+        my_scalebar(ax21, self.cz, c='k', loc=(.5, .22), distance='50pc')
 
         component = 'wing_OIII'
-        fluxmap = getattr(self.fluxmap, component)
-        dfluxmap = getattr(self.errmap, component)
         residuals = (getattr(self.fluxmap, component)
-                     - getattr(self.fluxmodel, component).image
+                     - getattr(self.fluxmodel, component)
                      ) / getattr(self.fluxmap, component)
         ax22 = plt.subplot(gs[2, 2])
         cmap = mpl.cm.get_cmap('seismic')
         im = ax22.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
-        my_scalebar(ax22, cz, c='k', loc=(.5, .22), distance='50pc')
+        my_scalebar(ax22, self.cz, c='k', loc=(.5, .22), distance='50pc')
         cbarlabel = 'residual/error'
         colorbar(im, label=cbarlabel)
 
         # draw borad centroids
-        ax00.scatter(*self.loc.broad[:2] * 0.025 * 1e3, marker='x', c='firebrick', s=40)
-        ax01.scatter(*self.loc.core_Hb[:2] * 0.025 * 1e3, marker='x', c='gold', s=40)
-        ax01.scatter(*self.loc.broad[:2] * 0.025 * 1e3, marker='x', c='firebrick', s=40)
-        ax02.scatter(*self.loc.wing_OIII[:2] * 0.025 * 1e3, marker='x', c='gold', s=40, label='centroid')
-        ax02.scatter(*self.loc.broad[:2] * 0.025 * 1e3, marker='x', c='firebrick', s=40, label='AGN')
+        ax00.scatter(*self.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40)
+        ax01.scatter(*self.loc.core_Hb[:2] * 0.025e3, marker='x', c='gold', s=40)
+        ax01.scatter(*self.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40)
+        ax02.scatter(*self.loc.wing_OIII[:2] * 0.025e3, marker='x', c='gold', s=40, label='centroid')
+        ax02.scatter(*self.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40, label='AGN')
         legend = ax02.legend(fontsize=8, bbox_to_anchor=(0.95, 0.3), framealpha=.5)
         legend.get_frame().set_alpha(.4)
 
@@ -1011,7 +1067,8 @@ class Astrometry(Cube):
         ax22.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
 
         if savefig:
-            plt.savefig('Output/spectroastrometry_maps.png', bbox_inches='tight')
+            self.makedir(path)
+            plt.savefig(path+'spectroastrometry_maps.png', bbox_inches='tight')
 
     def plot_all(self, coor, savefig=False, path='.'):
 
@@ -1037,6 +1094,35 @@ class Astrometry(Cube):
         self.plot_maps(gs=inner2, savefig=False)
 
         if savefig:
-            plt.savefig(path + '/spectroself.png', bbox_inches='tight')
+            self.makedir(path)
+            plt.savefig(path + 'Output/spectroastrometry.jpg', bbox_inches='tight')
 
         return fig
+
+
+    def run(self):
+
+        # initialize astropy models from best fit parameters
+        self.eline_models = self.setup_eline_models(self.wvl, self.qsotable)
+
+        # combine astropy models
+        print('Setup basis')
+        self.basis_models = self.setup_basis_models(self.eline_models, self.components)
+
+        # initialize arrays containing normalized spectra
+        self.basis = self.setup_basis_arrays(self.wvl, self.basis_models)
+
+        # fit components to cube
+        print('Fit components to cube')
+        self.fluxmap, self.errmap = self.fit_cube(self.wvl, self.cube.data, self.cube.error)
+
+        # find PSF model parameters from 'broad' component
+        print('Find PSF model parameters')
+        self.PSFmodel = self.get_PSFmodel()
+
+        # find centroid for each of the kinematic components' light distribution
+        print('Find centroids')
+        self.fluxmodel, self.loc = self.get_loc()
+
+        # plot the result
+        self.plot_all(coor= [0,0])

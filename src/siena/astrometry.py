@@ -3,8 +3,11 @@ This file contains the spectroastrometry class
 """
 
 from .cube import Cube
-import numpy as np
+
+import sys
+import os
 import glob
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.gridspec as gridspec
@@ -23,6 +26,15 @@ from maoppy.instrument import muse_nfm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from tqdm import tqdm
 import warnings
+from textwrap import wrap
+if sys.version_info < (3, 9):
+    # importlib.resources either doesn't exist or lacks the files()
+    # function, so use the PyPI version:
+    import importlib_resources
+else:
+    # importlib.resources has files(), so use that:
+    import importlib.resources as importlib_resources
+
 
 class Astrometry(Cube):
 
@@ -40,6 +52,7 @@ class Astrometry(Cube):
 
     def __init__(self, cubefile, eline_table, cz):
 
+        self.print_logo()
         self.cz = cz
         self.redshift = self.cz/3e5
         self.elines = [  'Hb_broad','Hb_medium', 'Hb_core', 'Hb_wing',
@@ -91,6 +104,21 @@ class Astrometry(Cube):
         print('Find centroids')
         self.model = self.findpos()
 
+
+    def print_logo(self):
+
+        pkg = importlib_resources.files("siena")
+        pkg_data_file = pkg / "data" / "logo.txt"
+        with  pkg_data_file.open() as f:
+            logo = f.readlines()
+
+        terminalsize = os.get_terminal_size()
+        logosize = (len(logo[0]),len(logo)) #(x,y) assume rectengular shape
+
+        for i in logo:
+            line = i.rsplit('\n')[0]
+            string = ("%s".center((terminalsize[0]-logosize[0]//2) //2) % line)[:terminalsize[0]]
+            print(string)
 
     def read_in_table(self,file):
 

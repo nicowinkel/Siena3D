@@ -9,5 +9,6 @@ terminalsize = os.get_terminal_size()
 logosize = (len(logo[0]),len(logo)) #(x,y) assume rectengular shape
 
 for i in logo:
-    string = i.rsplit('\n')[0]
-    print(("%s".center((terminalsize[0]) //2) % string))
+    line = i.rsplit('\n')[0]
+    string = ("%s".center((terminalsize[0]-logosize[0]//2) //2) % line)[:terminalsize[0]]
+    print(string)

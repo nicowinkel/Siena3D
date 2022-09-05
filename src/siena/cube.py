@@ -49,12 +49,12 @@ class Cube(Data):
         files.
     """
 
-    def __init__(self, header=None, data=None, wvlrf=None, error=None, mask=None, ncrop=14):
+    def __init__(self, header=None, data=None, error=None, mask=None, ncrop=14):
 
         Header.__init__(self, header=header)
         self.ncrop = ncrop
 
-    def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14):
+    def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, writecube=True, path='Output/'):
 
         """
             Truncates the initial data cube in both wavelength
@@ -78,6 +78,13 @@ class Cube(Data):
         self.data = self.data[:,(ycen-s):(ycen+s),(xcen-s):(xcen+s)]
         self.error = self.error[:,ycen-s:ycen+s,xcen-s:xcen+s]
 
+        if writecube:
+            primary = fits.PrimaryHDU(self.data)
+            hdu1 = fits.ImageHDU(self.error)
+            hdul = fits.HDUList([primary, hdu1])
+            hdul.writeto(path+'minicube.fits', overwrite=True)
+
+        return None
 
     def loadFitsCube(self, filename, cz=None,extension_hdr=None, extension_data=None,
                      extension_mask=None, extension_error=None,
@@ -127,6 +134,42 @@ class Cube(Data):
         else:
             pass
 
-        self.wvl /=(1+cz/3e5)
-
         hdu.close()
+
+    def get_AGN_spectrum(self, writespec=True, path='Ouput/'):
+
+        """
+            Reads table that contains parameters of the QSO spectrum model
+
+            Parameters
+            ----------
+            writespec : `boolean`
+                if TRUE: writes output file
+            path : `str`
+                path where output file will be written to
+
+            Returns
+            -------
+            coor: `tuple`
+                (x,y) coordinates of AGN in data cube
+            spectrum: `numpy array`
+                1D spectrum extracted from the AGN spaxel
+            error: `numpy array`
+                1D error spectrum extracted from the AGN spaxel
+
+        """
+
+        white_image = np.nansum(self.data, axis=0)
+        coor = np.unravel_index(np.nanargmax(white_image), white_image.shape)
+        spectrum = self.data[:, coor[0], coor[1]]
+        error = self.error[:, coor[0], coor[1]]
+
+        if writespec:
+            primary = fits.PrimaryHDU(self.wvl)
+            hdu0 = fits.ImageHDU(spectrum)
+            hdu1 = fits.ImageHDU(error)
+            hdul = fits.HDUList([primary, hdu0, hdu1])
+            hdul.writeto(path + '/AGNspec.fits', overwrite=True)
+
+
+        return coor, spectrum, error

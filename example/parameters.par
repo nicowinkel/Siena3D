@@ -1,0 +1,6 @@
+#  this file contains the parameters for the emission line fit
+
+cz                4913.4              # systemic velocity of the source
+instr_fwhm        2.54                # instrumentals resolution [Angstroem]
+wvl_start         4750                # lower wavelength limit for emission line fitting
+wvl_end           5100                # upper wavelength limit for emission line fitting

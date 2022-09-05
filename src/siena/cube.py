@@ -134,6 +134,8 @@ class Cube(Data):
         else:
             pass
 
+        self.wvl /= (1 + self.cz/3e5)
+
         hdu.close()
 
     def get_AGN_spectrum(self, writespec=True, path='Ouput/'):

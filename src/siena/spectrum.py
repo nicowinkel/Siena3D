@@ -36,131 +36,22 @@ class Eline(Cube):
 class Spectrum(Cube):
     def __init__(self, cube):
 
-        # read parameters                                                   <-- this needs to be outsourced!
-        self.fit_range = (4750*u.Angstrom, 5100*u.Angstrom)
+        # read parameters                                            <-- this needs to be outsourced!
+        #self.fit_range = (4750*u.Angstrom, 5100*u.Angstrom)
+        #self.cont_region = ???
 
         # inherited instances
-        self.wvl = getattr(cube, 'wvl')
+        self.wvl = getattr(cube, 'wvl')                             # rest-frame wavelength
         self.AGN_spectrum = getattr(cube, 'AGN_spectrum')
         self.AGN_error = getattr(cube, 'AGN_error')
 
         # setup eline models
-        self.lambdarest = self.load_lambdarest()
-        self.elines_par = self.load_elines()
-        self.nelines = len(self.elines_par.__dict__)
+        self.lambdarest = self.load_lambdarest()                    # rest-frame wavelengths of emission lines
+        self.elines_par = self.load_elines_par()                    # loads eline.par file
+        self.eline_models = self.setup_eline_models()               # generates astropy models
+        self.couple_amplitudes()                                    # couples line ratios
+        self.couple_kinematics()                                    # kin. coupling as specified in eline.par file
 
-        '''
-        self.param_init = {
-                'Hb_core' :       [a0*self.elines_par.Hb, self.lambdarest['Hb'],     2],
-                'OIII4959_core' : [a0*.2, self.lambdarest['OIII4959'],  2],
-                'OIII5007_core':  [a0*.2, self.lambdarest['OIII5007'],  2],
-
-                'Hb_medium':      [a0*.1, self.lambdarest['Hb'],       5],
-                'FeII4924_medium':[a0*.1, self.lambdarest['FeII4924'],    5],
-                'FeII5018_medium':[a0*.1, self.lambdarest['FeII5018'],    5],
-
-                'Hb_broad':       [a0*.15, self.lambdarest['Hb'],     18],
-                'FeII4924_broad': [a0*.05, self.lambdarest['FeII4924'],  18],
-                'FeII5018_broad': [a0*.05, self.lambdarest['FeII5018'],  18],
-
-                'Hb_wing':        [a0*.2, self.lambdarest['Hb']-4,    4],
-                'OIII4959_wing':  [a0*.1, self.lambdarest['OIII4959']-4,  4],
-                'OIII5007_wing':  [a0*.1, self.lambdarest['OIII5007']-4,  4]
-                        }
-       
-        self.param_init = {
-                'Hb_core': [a0 * .2, self.lambdarest['Hb'] - 1, 2],
-                'OIII4959_core': [a0 * .2, self.lambdarest['OIII4959'] - 1, 2],
-                'OIII5007_core': [a0 * .2, self.lambdarest['OIII5007'] - 1, 2],
-    
-                'Hb_medium': [a0 * .3, self.lambdarest['Hb'], 5],
-                'FeII4924_medium': [a0 * .1, self.lambdarest['FeII4924'], 5],
-                'FeII5018_medium': [a0 * .1, self.lambdarest['FeII5018'], 5],
-    
-                'Hb_broad': [a0 * .15, self.lambdarest['Hb'], 22],
-                'FeII4924_broad': [a0 * .05, self.lambdarest['FeII4924'], 22],
-                'FeII5018_broad': [a0 * .05, self.lambdarest['FeII5018'], 22],
-    
-                'Hb_wing': [a0 * .2, self.lambdarest['Hb'] - 5, 3],
-                'OIII4959_wing': [a0 * .3, self.lambdarest['OIII4959'] - 5, 3],
-                'OIII5007_wing': [a0 * .3, self.lambdarest['OIII5007'] - 5, 3]
-        }
-        '''
-        self.eline_models = self.setup_eline_models()
-
-
-        ##############   Kinematic Coupling  #################
-
-        # Line Ratios
-
-        self.eline_models.OIII5007_core.amplitude.tied = self.tie_OIII5007_core_amplitude
-        self.eline_models.OIII5007_wing.amplitude.tied = self.tie_OIII5007_wing_amplitude
-        self.eline_models.FeII5018_medium.amplitude.tied = self.tie_FeII5018_medium_amplitude
-        self.eline_models.FeII5018_broad.amplitude.tied = self.tie_FeII5018_broad_amplitude
-
-        # Velocities
-        self.eline_models.OIII4959_core.mean.tied = self.tie_OIII4959_core_pos
-        self.eline_models.OIII5007_core.mean.tied = self.tie_OIII5007_core_pos
-        self.eline_models.FeII4924_medium.mean.tied = self.tie_FeII4924_medium_pos
-        self.eline_models.FeII5018_medium.mean.tied = self.tie_FeII5018_medium_pos
-        self.eline_models.FeII4924_broad.mean.tied = self.tie_FeII4924_broad_pos
-        self.eline_models.FeII5018_broad.mean.tied = self.tie_FeII5018_broad_pos
-        self.eline_models.OIII4959_wing.mean.tied = self.tie_OIII4959_wing_pos
-        self.eline_models.OIII5007_wing.mean.tied = self.tie_OIII5007_wing_pos
-
-        # Dispersions
-        self.eline_models.OIII4959_core.stddev.tied = self.tie_OIII4959_core_stddev
-        self.eline_models.OIII5007_core.stddev.tied = self.tie_OIII5007_core_stddev
-        self.eline_models.FeII4924_medium.stddev.tied = self.tie_FeII4924_medium_stddev
-        self.eline_models.FeII4924_broad.stddev.tied = self.tie_FeII4924_broad_stddev
-        self.eline_models.FeII5018_medium.stddev.tied = self.tie_FeII5018_medium_stddev
-        self.eline_models.FeII5018_broad.stddev.tied = self.tie_FeII5018_broad_stddev
-        self.eline_models.OIII4959_wing.stddev.tied = self.tie_OIII4959_wing_stddev
-        self.eline_models.OIII5007_wing.stddev.tied = self.tie_OIII5007_wing_stddev
-
-
-        self.compound_model = self.setup_compound_model(self.elines_par, self.eline_models)
-
-        for i in self.compound_model:
-            i.amplitude.min = 0
-
-
-    #       Line Ratios
-    # note that we couple the fluxes (amplitude * stddev), not the amplitudes!
-    def tie_OIII5007_core_amplitude(self,model): return 3*model.amplitude_1#*(model.stddev_1/model.stddev_2)# couple to OIII4959
-    def tie_OIII5007_wing_amplitude(self,model):  return 3*model.amplitude_10#*(model.stddev_10/model.stddev_11) # couple to OIII4959_wing
-    def tie_FeII5018_medium_amplitude(self,model): return 1.29*model.amplitude_4#*(model.stddev_4/model.stddev_5) # couple to FeII4924_medium
-    def tie_FeII5018_broad_amplitude(self,model): return 1.29* model.amplitude_7#*(model.stddev_7/model.stddev_8) # couple to FeII4924_broad
-
-    #       Velocities
-    # narrow
-    def tie_OIII4959_core_pos(self,model): return model.mean_0 * (self.lambdarest['OIII4959']/self.lambdarest['Hb'])  # tie to Hb_core
-    def tie_OIII5007_core_pos(self,model): return model.mean_0 * (self.lambdarest['OIII5007']/self.lambdarest['Hb'])  # " Hb_core
-    # broad
-    def tie_FeII4924_medium_pos(self,model): return model.mean_3 * (self.lambdarest['FeII4924']/self.lambdarest['Hb'])  # couple to Hb_medium
-    def tie_FeII5018_medium_pos(self,model): return model.mean_3 * (self.lambdarest['FeII5018']/self.lambdarest['Hb'])  # couple to Hb_medium
-    def tie_FeII4924_broad_pos(self,model): return model.mean_6 * (self.lambdarest['FeII4924']/self.lambdarest['Hb'])  # couple to Hb_broad
-    def tie_FeII5018_broad_pos(self,model): return model.mean_6 * (self.lambdarest['FeII5018']/self.lambdarest['Hb'])  # couple to Hb_broad
-    # outflow
-    def tie_OIII4959_wing_pos(self,model):  return model.mean_9 * (self.lambdarest['OIII4959']/self.lambdarest['Hb'])  # couple to Hb_wing
-    def tie_OIII5007_wing_pos(self,model): return model.mean_9 * (self.lambdarest['OIII5007']/self.lambdarest['Hb'])  # couple to Hb_wing
-
-    #        Dispersions
-    # narrow
-    def tie_OIII4959_core_stddev(self,model): return model.stddev_0*(model.mean_1/model.mean_0)  # couple to Hb_core
-    def tie_OIII5007_core_stddev(self,model): return model.stddev_0*(model.mean_2/model.mean_0)  # couple to Hb narrow
-    # broad
-    def tie_FeII4924_medium_stddev(self,model):  return model.stddev_3*(model.mean_4/model.mean_3)   # couple to Hb_medium
-    def tie_FeII5018_medium_stddev(self,model): return model.stddev_3*(model.mean_5/model.mean_3)  # couple to Hb medium
-    def tie_FeII4924_broad_stddev(self,model):  return model.stddev_6*(model.mean_7/model.mean_6) # couple to Hb_broad
-    def tie_FeII5018_broad_stddev(self,model): return model.stddev_6*(model.mean_8/model.mean_6)  # couple to FeII4924_broad
-    # wing
-    def tie_OIII4959_wing_stddev(self,model): return model.stddev_9*(model.mean_10/model.mean_9) # couple to Hb_wing
-    def tie_OIII5007_wing_stddev(self,model):  return model.stddev_9*(model.mean_11/model.mean_9) # couple to Hb_wing
-
-
-
-            ##############################################
 
     def load_lambdarest(self):
 
@@ -183,9 +74,18 @@ class Spectrum(Cube):
 
         return lambdarest
 
-    def load_elines(self):
+    def load_elines_par(self, path='./'):
 
-        elines_file = "elines.par"
+        """
+            Read in the emission line parameters file
+
+            Parameters
+            ----------
+            path : `string`
+                relative path to elines.par file
+        """
+
+        elines_file = path + "elines.par"
         with open(elines_file) as f:
             lines = [line for line in f if not (line.startswith('#') or (line.split()==[]))]
 
@@ -198,6 +98,30 @@ class Spectrum(Cube):
 
         return elines
 
+    def load_parameters_par(self, path='./'):
+
+        """
+            Read in the parameters file
+
+            Parameters
+            ----------
+            path : `string`
+                relative path to parameters.par file
+        """
+
+        para_file = path + "elines.par"
+        with open(para_file) as f:
+            lines = [line for line in f if not (line.startswith('#') or (line.split() == []))]
+
+        elines = type('', (), {})()
+        for line in lines:
+            wave_min, wave_max = line.split()
+            setattr(elines, eline,
+                    Eline(component, bool(tied), float(amp_init), float(offset_init), float(stddev_init))
+                    )
+
+        return cont_regions
+
     def load_spectrum(self, file=None):
 
         with fits.open(file) as hdul:
@@ -209,26 +133,132 @@ class Spectrum(Cube):
 
         return wvl[select], spec[select], err[select]
 
+    def couple_amplitudes(self):
+
+        """
+            This functions couples the line ratios (i.e. amplitudes of the Gaussians)
+            to their theoretical predictions, as specified in the elines.par input file
+        """
+
+        self.eline_models.OIII5007_core.amplitude.tied = self.tie_OIII5007_core_amplitude
+        self.eline_models.OIII5007_wing.amplitude.tied = self.tie_OIII5007_wing_amplitude
+        self.eline_models.FeII5018_medium.amplitude.tied = self.tie_FeII5018_medium_amplitude
+        self.eline_models.FeII5018_broad.amplitude.tied = self.tie_FeII5018_broad_amplitude
+
+    #       Line Ratios
+    # note that we couple the fluxes (amplitude * stddev), not the amplitudes!
+    def tie_OIII5007_core_amplitude(self,model):
+        return 3 * model.amplitude_1  # *(model.stddev_1/model.stddev_2)# couple to OIII4959
+
+    def tie_OIII5007_wing_amplitude(self,model):
+        return 3 * model.amplitude_10  # *(model.stddev_10/model.stddev_11) # couple to OIII4959_wing
+
+    def tie_FeII5018_medium_amplitude(self,model):
+        return 1.29 * model.amplitude_4  # *(model.stddev_4/model.stddev_5) # couple to FeII4924_medium
+
+    def tie_FeII5018_broad_amplitude(self,model):
+        return 1.29 * model.amplitude_7  # *(model.stddev_7/model.stddev_8) # couple to FeII4924_broad
+
+        #return None
+
+    def couple_kinematics:
+        """
+            This functions couples the kinematics, as specified in the elines.par input file
+        """
+
+        # Velocities
+        self.eline_models.OIII4959_core.mean.tied = self.tie_OIII4959_core_pos
+        self.eline_models.OIII5007_core.mean.tied = self.tie_OIII5007_core_pos
+        self.eline_models.FeII4924_medium.mean.tied = self.tie_FeII4924_medium_pos
+        self.eline_models.FeII5018_medium.mean.tied = self.tie_FeII5018_medium_pos
+        self.eline_models.FeII4924_broad.mean.tied = self.tie_FeII4924_broad_pos
+        self.eline_models.FeII5018_broad.mean.tied = self.tie_FeII5018_broad_pos
+        self.eline_models.OIII4959_wing.mean.tied = self.tie_OIII4959_wing_pos
+        self.eline_models.OIII5007_wing.mean.tied = self.tie_OIII5007_wing_pos
+
+        # Dispersions
+        self.eline_models.OIII4959_core.stddev.tied = self.tie_OIII4959_core_stddev
+        self.eline_models.OIII5007_core.stddev.tied = self.tie_OIII5007_core_stddev
+        self.eline_models.FeII4924_medium.stddev.tied = self.tie_FeII4924_medium_stddev
+        self.eline_models.FeII4924_broad.stddev.tied = self.tie_FeII4924_broad_stddev
+        self.eline_models.FeII5018_medium.stddev.tied = self.tie_FeII5018_medium_stddev
+        self.eline_models.FeII5018_broad.stddev.tied = self.tie_FeII5018_broad_stddev
+        self.eline_models.OIII4959_wing.stddev.tied = self.tie_OIII4959_wing_stddev
+        self.eline_models.OIII5007_wing.stddev.tied = self.tie_OIII5007_wing_stddev
+
+        #       Velocities
+        # narrow
+
+    def tie_OIII4959_core_pos(self, model):
+        return model.mean_0 * (self.lambdarest['OIII4959'] / self.lambdarest['Hb'])  # tie to Hb_core
+
+    def tie_OIII5007_core_pos(self, model):
+        return model.mean_0 * (self.lambdarest['OIII5007'] / self.lambdarest['Hb'])  # " Hb_core
+
+    # broad
+    def tie_FeII4924_medium_pos(self, model):
+        return model.mean_3 * (self.lambdarest['FeII4924'] / self.lambdarest['Hb'])  # couple to Hb_medium
+
+    def tie_FeII5018_medium_pos(self, model):
+        return model.mean_3 * (self.lambdarest['FeII5018'] / self.lambdarest['Hb'])  # couple to Hb_medium
+
+    def tie_FeII4924_broad_pos(self, model):
+        return model.mean_6 * (self.lambdarest['FeII4924'] / self.lambdarest['Hb'])  # couple to Hb_broad
+
+    def tie_FeII5018_broad_pos(self, model):
+        return model.mean_6 * (self.lambdarest['FeII5018'] / self.lambdarest['Hb'])  # couple to Hb_broad
+
+    # outflow
+    def tie_OIII4959_wing_pos(self, model):
+        return model.mean_9 * (self.lambdarest['OIII4959'] / self.lambdarest['Hb'])  # couple to Hb_wing
+
+    def tie_OIII5007_wing_pos(self, model):
+        return model.mean_9 * (self.lambdarest['OIII5007'] / self.lambdarest['Hb'])  # couple to Hb_wing
+
+    #        Dispersions
+    # narrow
+    def tie_OIII4959_core_stddev(self, model):
+        return model.stddev_0 * (model.mean_1 / model.mean_0)  # couple to Hb_core
+
+    def tie_OIII5007_core_stddev(self, model):
+        return model.stddev_0 * (model.mean_2 / model.mean_0)  # couple to Hb narrow
+
+    # broad
+    def tie_FeII4924_medium_stddev(self, model):
+        return model.stddev_3 * (model.mean_4 / model.mean_3)  # couple to Hb_medium
+
+    def tie_FeII5018_medium_stddev(self, model):
+        return model.stddev_3 * (model.mean_5 / model.mean_3)  # couple to Hb medium
+
+    def tie_FeII4924_broad_stddev(self, model):
+        return model.stddev_6 * (model.mean_7 / model.mean_6)  # couple to Hb_broad
+
+    def tie_FeII5018_broad_stddev(self, model):
+        return model.stddev_6 * (model.mean_8 / model.mean_6)  # couple to FeII4924_broad
+
+    # wing
+    def tie_OIII4959_wing_stddev(self, model):
+        return model.stddev_9 * (model.mean_10 / model.mean_9)  # couple to Hb_wing
+
+    def tie_OIII5007_wing_stddev(self, model):
+        return model.stddev_9 * (model.mean_11 / model.mean_9)  # couple to Hb_wing
+
+
     def subtract_continuum(self,wvl,spectrum):
 
-        continuum_rf = {1:[4750,4755], 4:[5080,5090]}
-
-        select_cont = np.zeros(wvl.shape).astype(bool)
-        for i in continuum_rf:
-            select_cont = select_cont + ((wvl> continuum_rf[i][0]) &
-                                         (wvl< continuum_rf[i][1])
-                                        )
+        select = np.zeros(wvl.shape).astype(bool)
+        for i in self.cont_region:
+            select = select + ((wvl> cont_region[i][0]) & (wvl< cont_region[i][1]))
 
         fit = fitting.LinearLSQFitter() # initialize linear fitter
         line_init=models.Polynomial1D(degree=1)
 
-        cont_model = fit(line_init, wvl[select_cont], spectrum[select_cont])
+        cont_model = fit(line_init, wvl[select], spectrum[select])
         cont = cont_model(wvl)
 
         eline = spectrum - cont
 
         return eline, cont
-
 
     def setup_eline_models(self):
 
@@ -255,7 +285,7 @@ class Spectrum(Cube):
         # this function kinematically ties the components that stem from the same region
 
         # get all eline_models in component
-        basemodels = np.full(self.nelines, models.Gaussian1D())
+        basemodels = np.full(len(self.elines_par.__dict__), models.Gaussian1D())
         for idx, eline in enumerate(self.elines_par.__dict__):
             basemodels[idx] = getattr(self.eline_models, eline)
 
@@ -263,9 +293,12 @@ class Spectrum(Cube):
         for idx in range(len(basemodels))[1:]: # add all models to first element in array
             basemodels[0] += basemodels[idx]
 
-        compound_model = basemodels[0]
+        self.compound_model = basemodels[0]
 
-        return compound_model
+        for i in self.compound_model:
+            i.amplitude.min = 0
+
+        return None
 
     def fit(self):
         
@@ -284,8 +317,6 @@ class Spectrum(Cube):
         return None
 
     def write(self, path='Output/'):
-
-        if path==None: raise ValueError('specify path to write output file!')
 
         # (1) par_table
         t = Table([[eline for eline in self.elines_par.__dict__],

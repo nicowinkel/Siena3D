@@ -112,8 +112,6 @@ class Astrometry(Cube):
         self.cube = Cube()
         self.cube.loadFitsCube(cubefile, cz=self.cz, extension_hdr=1, extension_data=1, extension_error=2)
 
-        # bring wavelength axis to rest frame
-        self.cube.wvl /= (1+self.cz/3e5)
         # get minicube
         self.cube.get_minicube(writecube=True, path='Output/')
 
@@ -154,47 +152,6 @@ class Astrometry(Cube):
         table = Table(hdul[1].data)
 
         return table
-
-    def subtract_continuum(self, wvl, spectrum):
-
-        """
-            Extract and subtract linear continuum in the Hb window
-            by defining two regions in the rest-frame
-            (blue from Hb, red from [OIII])
-            returns the continuum-subtracted emission lines and the continuum
-
-            Parameters
-            ----------
-            wvl : `numpy array`
-                wavelength array
-            spectrum : `numpy array`
-                flux array, must be of the same dimesion as wvl
-
-            Returns
-            -------
-            eline: `numpy array`
-                continuum-subtracted spectrum
-            cont: `numpy array`
-                continuum
-
-        """
-
-        continuum_rf = {1: [4750, 4755], 4: [5050, 5090]}
-
-        iscont = np.zeros(wvl.shape).astype(bool)
-        for i in continuum_rf:
-            iscont = iscont + ((wvl > continuum_rf[i][0]) &
-                               (wvl < continuum_rf[i][1])
-                               )
-        # initialize linear fitter
-        fit = fitting.LinearLSQFitter()
-        powerlaw = models.Polynomial1D(degree=1)
-
-        cont_model = fit(powerlaw, wvl[iscont], spectrum[iscont])
-        cont = cont_model(wvl)
-        eline = spectrum - cont
-
-        return eline, cont
 
     def setup_eline_models(self, wvl, par_table):
 
@@ -330,7 +287,7 @@ class Astrometry(Cube):
         """
 
         # Subtract continuum
-        spec_eline, continuum = self.subtract_continuum(wvl, spectrum)
+        spec_eline, continuum = self.spectrum.subtract_continuum(wvl, spectrum)
 
         A = np.zeros([wvl.shape[0], len(self.components.keys())])
 
@@ -678,6 +635,7 @@ class Astrometry(Cube):
 
         # initialize astropy models from best fit parameters
         self.eline_models = self.setup_eline_models(self.wvl, self.par_table)
+        self.setup_compound_model(self.elines_par, self.eline_models)
 
         # combine astropy models
         print(' [2] Setup basis')

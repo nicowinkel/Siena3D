@@ -34,23 +34,26 @@ class Eline(Cube):
         self.stddev_init = stddev_init
 
 class Spectrum(Cube):
-    def __init__(self, cube):
+    def __init__(self, cube, wvl_start=4750, wvl_end=9300):
 
-        # read parameters                                            <-- this needs to be outsourced!
-        #self.fit_range = (4750*u.Angstrom, 5100*u.Angstrom)
-        #self.cont_region = ???
+        # init parameters
+        self.fit_range = (wvl_start*u.Angstrom, wvl_end*u.Angstrom)     # wavelength window for fit
 
         # inherited instances
-        self.wvl = getattr(cube, 'wvl')                             # rest-frame wavelength
-        self.AGN_spectrum = getattr(cube, 'AGN_spectrum')
-        self.AGN_error = getattr(cube, 'AGN_error')
+        self.wvl = getattr(cube, 'wvl')                                 # rest-frame wavelength
+        self.AGN_spectrum = getattr(cube, 'AGN_spectrum')               # full AGN spectrum
+        self.AGN_error = getattr(cube, 'AGN_error')                     # full AGN error spectrum
 
-        # setup eline models
-        self.lambdarest = self.load_lambdarest()                    # rest-frame wavelengths of emission lines
-        self.elines_par = self.load_elines_par()                    # loads eline.par file
-        self.eline_models = self.setup_eline_models()               # generates astropy models
-        self.couple_amplitudes()                                    # couples line ratios
-        self.couple_kinematics()                                    # kin. coupling as specified in eline.par file
+        # load data from input files in working directory
+        self.lambdarest = self.load_lambdarest()                        # rest-frame wavelengths of emission lines
+        self.elines_par = self.load_elines_par()                        # loads eline.par file
+        self.incl_cont = self.load_incl_cont()                          # loads eline.par file
+
+        # setup emission line models
+        self.eline_models = self.setup_eline_models()                   # generates astropy models
+        self.setup_compound_model()                                     # combines all models to one
+        self.couple_amplitudes()                                        # couples line ratios
+        self.couple_kinematics()                                        # kin. coupling as specified in eline.par file
 
 
     def load_lambdarest(self):
@@ -87,40 +90,40 @@ class Spectrum(Cube):
 
         elines_file = path + "elines.par"
         with open(elines_file) as f:
-            lines = [line for line in f if not (line.startswith('#') or (line.split()==[]))]
+            lines = [line for line in f if not (line.startswith('#') or (line.split() == []))]
 
         elines = type('', (), {})()
         for line in lines:
-            eline, component, tied, amp_init, offset_init, stddev_init= line.split()
+            eline, component, tied, amp_init, offset_init, stddev_init = line.split()
             setattr(elines, eline,
                     Eline(component, bool(tied), float(amp_init), float(offset_init), float(stddev_init))
                     )
 
         return elines
 
-    def load_parameters_par(self, path='./'):
+    def load_incl_cont(self, path='./'):
 
         """
-            Read in the parameters file
+            Read in the file that contains the AGN continuum regions
 
             Parameters
             ----------
             path : `string`
-                relative path to parameters.par file
+                relative path to incl.cont file
         """
 
-        para_file = path + "elines.par"
+        para_file = path + "incl.cont"
         with open(para_file) as f:
             lines = [line for line in f if not (line.startswith('#') or (line.split() == []))]
 
-        elines = type('', (), {})()
-        for line in lines:
-            wave_min, wave_max = line.split()
-            setattr(elines, eline,
-                    Eline(component, bool(tied), float(amp_init), float(offset_init), float(stddev_init))
-                    )
+        # store start/end wavelength in dictionary
+        incl_cont = {}
+        for idx, line in enumerate(lines):
+            wvl_min, wvl_max = line.split()
+            incl_cont[idx] = [float(wvl_min), float(wvl_max)]
 
-        return cont_regions
+        return incl_cont
+
 
     def load_spectrum(self, file=None):
 
@@ -161,7 +164,7 @@ class Spectrum(Cube):
 
         #return None
 
-    def couple_kinematics:
+    def couple_kinematics(self):
         """
             This functions couples the kinematics, as specified in the elines.par input file
         """
@@ -247,11 +250,11 @@ class Spectrum(Cube):
     def subtract_continuum(self,wvl,spectrum):
 
         select = np.zeros(wvl.shape).astype(bool)
-        for i in self.cont_region:
-            select = select + ((wvl> cont_region[i][0]) & (wvl< cont_region[i][1]))
+        for i in self.incl_cont:
+            select = select + ((wvl> self.incl_cont[i][0]) & (wvl< self.incl_cont[i][1]))
 
         fit = fitting.LinearLSQFitter() # initialize linear fitter
-        line_init=models.Polynomial1D(degree=1)
+        line_init = models.Polynomial1D(degree=1)
 
         cont_model = fit(line_init, wvl[select], spectrum[select])
         cont = cont_model(wvl)
@@ -279,7 +282,7 @@ class Spectrum(Cube):
 
         return eline_models
 
-    def setup_compound_model(self, elines, eline_models):
+    def setup_compound_model(self):
 
         # from all emission lines found in the QSO spectrum
         # this function kinematically ties the components that stem from the same region

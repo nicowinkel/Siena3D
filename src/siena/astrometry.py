@@ -41,19 +41,15 @@ class Astrometry(Cube):
         path to the output file from the AGN fitting
     """
 
-    def __init__(self, cubefile, cz):
+    def __init__(self, cubefile):
 
+        # load cube
         self.cubefile = cubefile
-        self.cz = cz
-        self.redshift = self.cz / 3e5
 
-        # setup emission lines and components to which they belong
-        self.elines = ['Hb_broad', 'Hb_medium', 'Hb_core', 'Hb_wing',
-                       'FeII4924_medium', 'FeII4924_broad',
-                       'FeII5018_medium', 'FeII5018_broad',
-                       'OIII4959_core', 'OIII4959_wing',
-                       'OIII5007_core', 'OIII5007_wing',
-                       ]
+        # load object-specific parameters
+        self.load_parameters_par()
+
+        # setup components to which emission lines belong
 
         self.components = {'broad': ['Hb_broad', 'Hb_medium',
                                      'FeII4924_medium', 'FeII4924_broad',
@@ -66,7 +62,6 @@ class Astrometry(Cube):
 
         # setup working data
         self.print_logo()
-        #self.setup_rcparams()
 
 
     def print_logo(self):
@@ -88,6 +83,27 @@ class Astrometry(Cube):
             string = ("%s".center((terminalsize[0] - logosize[0] // 2) // 2) % line)[:terminalsize[0]]
             print(string)
 
+    def load_parameters_par(self, path='./'):
+
+        """
+            Read in the parameters file
+
+            Parameters
+            ----------
+            path : `string`
+                relative path to parameters.par file
+        """
+
+        parameters_file = path + "parameters.par"
+        with open(parameters_file) as f:
+            lines = [line for line in f if not (line.startswith('#') or (line.split() == []))]
+
+        # store start/end wavelength in dictionary
+        for line in lines:
+            parameter, value = line.split()[:2]
+            setattr(self, parameter, float(value))
+
+        return None
 
     def setup_AGN_spectrum(self, cubefile):
 
@@ -109,7 +125,7 @@ class Astrometry(Cube):
         """
 
         # initialize cube
-        self.cube = Cube()
+        self.cube = Cube(cz=self.cz)
         self.cube.loadFitsCube(cubefile, cz=self.cz, extension_hdr=1, extension_data=1, extension_error=2)
 
         # get minicube
@@ -119,7 +135,7 @@ class Astrometry(Cube):
         self.cube.AGN_loc, self.cube.AGN_spectrum, self.cube.AGN_error = self.cube.get_AGN_spectrum(writespec=True, path='Output/')
 
         # get AGN spectrum
-        self.spectrum = Spectrum(self.cube)
+        self.spectrum = Spectrum(self.cube, wvl_start=self.wvl_start, wvl_end=self.wvl_end)
 
         # get mini-wvl array from truncated cube
         self.wvl = self.cube.wvl
@@ -153,6 +169,7 @@ class Astrometry(Cube):
 
         return table
 
+    '''
     def setup_eline_models(self, wvl, par_table):
 
         """
@@ -189,7 +206,7 @@ class Astrometry(Cube):
                 setattr(eline_models, eline, eline_model)
 
         return eline_models
-
+    '''
     def setup_basis_models(self, gaussmodels, components):
 
         """
@@ -219,7 +236,7 @@ class Astrometry(Cube):
             # get all elines that belong to that component
             basemodels = np.full(len(components[component]), models.Gaussian1D())
             for idx, eline in enumerate(components[component]):
-                basemodels[idx] = getattr(self.eline_models, eline)
+                basemodels[idx] = getattr(self.spectrum.eline_models, eline)
 
             # combine the eline models
             for idx in range(len(basemodels))[1:]:
@@ -634,12 +651,12 @@ class Astrometry(Cube):
         self.setup_AGN_spectrum(self.cubefile)
 
         # initialize astropy models from best fit parameters
-        self.eline_models = self.setup_eline_models(self.wvl, self.par_table)
-        self.setup_compound_model(self.elines_par, self.eline_models)
+        #self.eline_models = self.setup_eline_models(self.wvl, self.par_table)
+        #self.setup_compound_model(self.elines_par, self.eline_models)
 
         # combine astropy models
-        print(' [2] Setup basis')
-        self.basis_models = self.setup_basis_models(self.eline_models, self.components)
+        #print(' [2] Setup basis')
+        self.basis_models = self.setup_basis_models(self.spectrum.eline_models, self.components)
 
         # initialize arrays containing normalized spectra
         self.basis = self.setup_basis_arrays(self.wvl, self.basis_models)

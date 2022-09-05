@@ -49,10 +49,9 @@ class Cube(Data):
         files.
     """
 
-    def __init__(self, header=None, data=None, error=None, mask=None, ncrop=14):
+    def __init__(self, header=None, cz=None, data=None, error=None, mask=None, ncrop=14):
 
         Header.__init__(self, header=header)
-        self.ncrop = ncrop
 
     def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, writecube=True, path='Output/'):
 
@@ -86,7 +85,7 @@ class Cube(Data):
 
         return None
 
-    def loadFitsCube(self, filename, cz=None,extension_hdr=None, extension_data=None,
+    def loadFitsCube(self, filename, cz=None, extension_hdr=None, extension_data=None,
                      extension_mask=None, extension_error=None,
                      extension_errorweight=None, extensionProjects_hdr=0):
 
@@ -134,7 +133,7 @@ class Cube(Data):
         else:
             pass
 
-        self.wvl /= (1 + self.cz/3e5)
+        self.wvl /= (1+cz/3e5)
 
         hdu.close()
 

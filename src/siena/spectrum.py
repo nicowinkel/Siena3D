@@ -60,11 +60,9 @@ class Spectrum(Cube):
 
         # setup emission line models
         self.eline_models = self.setup_eline_models()                   # generates astropy models
+        self.compound_model = self.setup_compound_model()               # combines all models to one
         self.couple_amplitudes()                                        # couples line ratios
         self.couple_kinematics()                                        # kin. coupling as specified in eline.par file
-        self.compound_model = self.setup_compound_model()               # combines all models to one
-
-        print(self.compound_model)
 
     def load_lambdarest(self):
 
@@ -104,6 +102,7 @@ class Spectrum(Cube):
 
         elines = type('', (), {})()
         for idx, line in enumerate(lines):
+
             eline, component, tied, amp_init, offset_init, stddev_init = line.split()
             setattr(elines, eline,
                     Eline(component, tied, float(amp_init), float(offset_init), float(stddev_init), idx)
@@ -152,28 +151,41 @@ class Spectrum(Cube):
             to their theoretical predictions, as specified in the elines.par input file
         """
 
-        for eline in self.elines_par.__dict__:
+        def makeFunc_amplitude(model, factor, idx_ref):
+            """
+                This nested function generates a lambda function that is required by astropy to
+                 tie parameters. This is necessary since the argument (i.e. model and factor)
+                 needs to be bound for each function created.
+            """
+            return lambda model: factor * getattr(model, 'amplitude_'+str(idx_ref))
+
+        for idx_eline, eline in enumerate(self.elines_par.__dict__):
 
             # split name and component to which the emission line belongs
             # find the reference line to which the amplitude is coupled
             name, component = eline.split('_')
 
             # define line-specific amplitude ratio
-            if ('OIII5007' in eline) or ('FeII5018' in eline):
-                if 'OIII5007' in eline:
-                    ref = 'OIII4959'
+            if (name == 'OIII5007') or (name == 'FeII5018'):
+                if (name == 'OIII5007'):
+                    ref_name = 'OIII4959'
                     factor = 3
-                elif 'FeII5018' in eline:
-                    ref = 'FeII4924'
+                elif (name == 'FeII5018'):
+                    ref_name = 'FeII4924'
                     factor = 1.29
-
+                else:
+                    ref_name = None
+                    factor = None
+                    
                 # index in compound model of reference line
-                idx_ref = getattr(self.elines_par, ref+'_'+component).idx
+                idx_ref = getattr(self.elines_par, ref_name+'_'+component).idx
+
+                # print(eline, ref_name, factor, idx_eline, idx_ref) # inspect which lines are coupled to which
 
                 # set compound model value to (some factor) x (reference line value)
                 # which is an attribute of the compound model
-                getattr(self.eline_models, eline).amplitude.tied = lambda model: \
-                    factor * getattr(model, 'amplitude_'+str(idx_ref))
+                getattr(self.compound_model, 'amplitude_'+str(idx_eline)).tied = makeFunc_amplitude(self.compound_model,
+                                                                                                   factor, idx_ref)
 
         return None
 
@@ -182,6 +194,29 @@ class Spectrum(Cube):
         """
             This functions couples the kinematics, as specified in the elines.par input file
         """
+
+
+        def makeFunc_vel(model, eline, idx_ref):
+
+            """
+                This nested function generates a lambda function that is required by astropy to
+                tie parameters. This is necessary since the argument (i.e. model and factor)
+                needs to be bound for each function created.
+            """
+            return lambda model: (getattr(model, 'mean_'+str(idx_ref)) *
+                                (self.lambdarest[eline.split('_')[0]] / self.lambdarest[ref.split('_')[0]])
+                                )
+        
+        def makeFunc_disp(model, idx_eline, idx_ref):
+
+            """
+                Same as the above function for dispersion.
+            """
+
+            return lambda model: (getattr(model, 'stddev_'+str(idx_ref)) *
+                                getattr(model, 'mean_' + str(idx_eline)) / (getattr(model, 'mean_' + str(idx_ref)))
+                                )
+
 
         # get all emission lines that are 'reference lines', i.e. a line to which others are kinematically coupled
         # for the 'reference lines', their name equals the column 'tied' in the elines.par file
@@ -207,17 +242,23 @@ class Spectrum(Cube):
                     # index in compound model of emission line
                     idx_eline = getattr(self.elines_par, eline).idx
 
-                    print(eline, idx_eline, ref, idx_ref)
+                    print(eline, idx_eline, ref, idx_ref) # inspect which elines are coupled to which
 
                     # (1) couple velocity based on rest-frame wavelengths
-                    getattr(self.eline_models, eline).mean.tied = lambda model: \
-                        (getattr(model, 'mean_'+str(idx_ref)) *
-                             (self.lambdarest[eline.split('_')[0]] / self.lambdarest[ref.split('_')[0]]))
+                    getattr(self.compound_model, 'mean_'+str(idx_eline)).tied = makeFunc_vel(self.compound_model,
+                                                                                             eline, idx_ref)
+                    
+                    #lambda model: \
+                    #    (getattr(model, 'mean_'+str(idx_ref)) *
+                    #         (self.lambdarest[eline.split('_')[0]] / self.lambdarest[ref.split('_')[0]]))
 
                     # (2) couple dispersion based on rest-frame wavelengths
-                    getattr(self.eline_models, eline).stddev.tied = lambda model: \
-                        (getattr(model, 'stddev_'+str(idx_ref)) *
-                             getattr(model, 'mean_' + str(idx_eline)) / (getattr(model, 'mean_' + str(idx_ref))))
+                    getattr(self.compound_model, 'stddev_'+str(idx_eline)).tied = makeFunc_disp(self.compound_model,
+                                                                                                idx_eline, idx_ref)
+
+                    #lambda model: \
+                    #    (getattr(model, 'stddev_'+str(idx_ref)) *
+                    #         getattr(model, 'mean_' + str(idx_eline)) / (getattr(model, 'mean_' + str(idx_ref))))
 
     def setup_eline_models(self):
 
@@ -286,8 +327,6 @@ class Spectrum(Cube):
         self.bestfit_model = fit_lines(spectrum, self.compound_model, window=self.fit_range, weights='unc')
         self.eline_model = self.bestfit_model(self.wvl*u.Angstrom)
 
-       # for i in self.bestfit_model:
-       #     print(i)
 
         self.write()
         siena.plot.plot_AGNspec_model(self, savefig=True)

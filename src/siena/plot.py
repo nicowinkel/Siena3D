@@ -138,19 +138,20 @@ def plot_AGNspec_model(spectrum,axes=None, savefig=True, path='Output/'):
     set_rc_params()
 
     # get line parameters from compound model
-    Hbeta_narrow_fit = spectrum.bestfit_model[0](spectrum.wvl*u.Angstrom)
-    OIII4959_fit = spectrum.bestfit_model[1](spectrum.wvl*u.Angstrom)
-    OIII5007_fit = spectrum.bestfit_model[2](spectrum.wvl*u.Angstrom)
+    Hb_broad_fit = spectrum.bestfit_model[0](spectrum.wvl*u.Angstrom)
+    FeII4924_broad_fit = spectrum.bestfit_model[1](spectrum.wvl*u.Angstrom)
+    FeII5018_broad_fit = spectrum.bestfit_model[2](spectrum.wvl * u.Angstrom)
 
-    Hbeta_medium_fit = spectrum.bestfit_model[3](spectrum.wvl*u.Angstrom)
+
+    Hb_medium_fit = spectrum.bestfit_model[3](spectrum.wvl*u.Angstrom)
     FeII4924_medium_fit = spectrum.bestfit_model[4](spectrum.wvl*u.Angstrom)
     FeII5018_medium_fit = spectrum.bestfit_model[5](spectrum.wvl*u.Angstrom)
 
-    Hbeta_broad_fit = spectrum.bestfit_model[6](spectrum.wvl*u.Angstrom)
-    FeII4924_broad_fit = spectrum.bestfit_model[7](spectrum.wvl*u.Angstrom)
-    FeII5018_broad_fit = spectrum.bestfit_model[8](spectrum.wvl*u.Angstrom)
+    Hb_core_fit = spectrum.bestfit_model[6](spectrum.wvl*u.Angstrom)
+    OIII4959_core_fit = spectrum.bestfit_model[7](spectrum.wvl*u.Angstrom)
+    OIII5007_core_fit = spectrum.bestfit_model[8](spectrum.wvl*u.Angstrom)
 
-    Hbeta_wing_fit = spectrum.bestfit_model[9](spectrum.wvl*u.Angstrom)
+    Hb_wing_fit = spectrum.bestfit_model[9](spectrum.wvl*u.Angstrom)
     OIII4959_wing_fit = spectrum.bestfit_model[10](spectrum.wvl*u.Angstrom)
     OIII5007_wing_fit = spectrum.bestfit_model[11](spectrum.wvl*u.Angstrom)
 
@@ -161,14 +162,14 @@ def plot_AGNspec_model(spectrum,axes=None, savefig=True, path='Output/'):
     plt.step(spectrum.wvl+1.25/2, spectrum.AGN_spectrum, c='k', label='AGN')
     plt.plot(spectrum.wvl, spectrum.eline_model + spectrum.cont*u.Jy, '-', linewidth=1, c='red', label=r'Compound Model')
 
-    plt.plot(spectrum.wvl, Hbeta_narrow_fit, '-.', linewidth=0.5, c='m', label=r'H$\beta$ core')
-    plt.plot(spectrum.wvl, Hbeta_medium_fit, '--', linewidth=.5, c='m', label=r'H$\beta$ medium')
-    plt.plot(spectrum.wvl, Hbeta_broad_fit, '-', linewidth=.5, c='m', label=r'H$\beta$ broad')
-    plt.plot(spectrum.wvl, Hbeta_wing_fit, '.', markersize=.5, c='m', label=r'H$\beta$ wing')
+    plt.plot(spectrum.wvl, Hb_core_fit, '-.', linewidth=0.5, c='m', label=r'H$\beta$ core')
+    plt.plot(spectrum.wvl, Hb_medium_fit, '--', linewidth=.5, c='m', label=r'H$\beta$ medium')
+    plt.plot(spectrum.wvl, Hb_broad_fit, '-', linewidth=.5, c='m', label=r'H$\beta$ broad')
+    plt.plot(spectrum.wvl, Hb_wing_fit, '.', markersize=.5, c='m', label=r'H$\beta$ wing')
 
-    plt.plot(spectrum.wvl, OIII4959_fit, '-.', linewidth=.5, c='green', label=r'OIII4959 core')
+    plt.plot(spectrum.wvl, OIII4959_core_fit, '-.', linewidth=.5, c='green', label=r'OIII4959 core')
     plt.plot(spectrum.wvl, OIII4959_wing_fit, '.', markersize=.5, c='green', label=r'OIII4959 wing')
-    plt.plot(spectrum.wvl, OIII5007_fit, '-.', linewidth=.5, c='darkgreen', label=r'OIII5007 core')
+    plt.plot(spectrum.wvl, OIII5007_core_fit, '-.', linewidth=.5, c='darkgreen', label=r'OIII5007 core')
     plt.plot(spectrum.wvl, OIII5007_wing_fit, '.', markersize=.5, c='darkgreen', label=r'OIII5007 wing')
 
     plt.plot(spectrum.wvl, FeII4924_medium_fit, '--', linewidth=.5, c='blue', label=r'FeII4924 medium')

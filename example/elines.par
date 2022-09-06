@@ -1,21 +1,22 @@
+# '''
 # this file contains the emission lines that are included in the multi-Gaussian
 # model, the component to which they are kinematically tied, and the initial
 # guess for their value.
-#
 # amplitude_init : fraction relative max flux density in AGN spectrum [None]
 # dmean_init: offset from restframe wavelength [Angstroem]
 # stddev_init: width of the line [Angstroem]
+# '''
 #
-# eline                 component       tied        amp_init    offset_init   stddev_init
-Hb_broad                broad           True        .1          0            22
-FeII4924_broad          broad           True        .05         0            22
-FeII5018_broad          broad           True        .05         0            22
-Hb_medium               medium          True        .1          0            5
-FeII4924_medium         medium          True        .1          0            5
-FeII5018_medium         medium          True        .1          0            5
-Hb_core                 core            True        .05         0            2
-OIII4959_core           core            True        .2          0            2
-OIII5007_core           core            True        .2          0            2
-Hb_wing                 wing            True        .2          -5           3
-OIII4959_wing           wing            True        .1          -5           3
-OIII5007_wing           wing            True        .1          -5           3
+# eline                 component       tied            amp_init    offset_init  stddev_init
+Hb_broad                broad           Hb_broad        .1          0            22
+FeII4924_broad          broad           Hb_broad        .05         0            22
+FeII5018_broad          broad           Hb_broad        .05         0            22
+Hb_medium               medium          Hb_medium       .1          0            5
+FeII4924_medium         medium          Hb_medium       .1          0            5
+FeII5018_medium         medium          Hb_medium       .1          0            5
+Hb_core                 core            Hb_core         .05         0            2
+OIII4959_core           core            Hb_core         .2          0            2
+OIII5007_core           core            Hb_core         .2          0            2
+Hb_wing                 wing            Hb_wing         .2          -5           3
+OIII4959_wing           wing            Hb_wing         .1          -5           3
+OIII5007_wing           wing            Hb_wing         .1          -5           3

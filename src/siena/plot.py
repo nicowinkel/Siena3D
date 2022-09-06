@@ -223,7 +223,7 @@ def plot_spectrum(astrometry, coor=None, gs=None, savefig=False):
                + astrometry.fluxmap.core_OIII[coor[0], coor[1]] * astrometry.basis.core_OIII
     wing_fit = astrometry.fluxmap.wing_OIII[coor[0], coor[1]] * astrometry.basis.wing_OIII
     # + astrometry.fluxmap.wing_Hb[coor[0],coor[1]]*astrometry.basis.wing_Hb \
-    _, continuum_fit = astrometry.subtract_continuum(astrometry.wvl, astrometry.cube.data[:, coor[0], coor[1]])
+    _, continuum_fit = astrometry.spectrum.subtract_continuum(astrometry.wvl, astrometry.cube.data[:, coor[0], coor[1]])
     model_fit = continuum_fit + broad_fit + core_fit + wing_fit
 
     spec = astrometry.cube.data[:, coor[0], coor[1]]

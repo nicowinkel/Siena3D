@@ -24,7 +24,12 @@ else:
 
 
 
-class Eline(Cube):
+class Eline(object):
+
+    """
+    A class that represents an emission line as characterized by the parameters in the eline.par file
+    """
+
     def __init__(self, component=None, tied=False, amp_init=0, offset_init=0, stddev_init=0, idx=None):
 
         self.component = component
@@ -35,6 +40,15 @@ class Eline(Cube):
         self.idx = idx                                                  # index in compound model
 
 class Spectrum(Cube):
+
+    """
+    A class contains the spectrum properties and performs a modelling of the AGN spectrum.
+
+    Parameters
+    ----------
+    Cube: cube object from which attributes can be inherited
+    """
+
     def __init__(self, cube, wvl_start=4750, wvl_end=9300):
 
         self.components = {'broad': ['Hb_broad', 'Hb_medium',

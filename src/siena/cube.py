@@ -52,6 +52,7 @@ class Cube(Data):
     def __init__(self, header=None, cz=None, data=None, error=None, mask=None, ncrop=14):
 
         Header.__init__(self, header=header)
+        self.ncrop = ncrop
 
     def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, writecube=True, path='Output/'):
 

@@ -213,15 +213,15 @@ def plot_spectrum(astrometry, coor=None, gs=None, savefig=False):
     # approx. rescale to maximum flux density of the AGN spectrum
     broad_init = astrometry.basis.broad
     broad_init = broad_init / np.nanmax(astrometry.basis.broad) * .3 * np.nanmax(astrometry.cube.AGN_spectrum)
-    core_init = astrometry.basis.core_Hb + astrometry.basis.core_OIII
+    core_init = astrometry.basis.core_OIII # + astrometry.basis.core_Hb
     core_init = core_init / np.nanmax(core_init) * .3 * np.max(astrometry.cube.AGN_spectrum)
     wing_init = astrometry.basis.wing_OIII  # astrometry.basis.wing_Hb+
     wing_init = wing_init / np.nanmax(wing_init) * .3 * np.max(astrometry.cube.AGN_spectrum)
 
     # fit result, scaled to AGN_spectrum
     broad_fit = astrometry.fluxmap.broad[coor[0], coor[1]] * astrometry.basis.broad
-    core_fit = astrometry.fluxmap.core_Hb[coor[0], coor[1]] * astrometry.basis.core_Hb \
-               + astrometry.fluxmap.core_OIII[coor[0], coor[1]] * astrometry.basis.core_OIII
+    core_fit = astrometry.fluxmap.core_OIII[coor[0], coor[1]] * astrometry.basis.core_OIII #\
+                #+ astrometry.fluxmap.core_Hb[coor[0], coor[1]] * astrometry.basis.core_Hb
     wing_fit = astrometry.fluxmap.wing_OIII[coor[0], coor[1]] * astrometry.basis.wing_OIII
     # + astrometry.fluxmap.wing_Hb[coor[0],coor[1]]*astrometry.basis.wing_Hb \
     _, continuum_fit = astrometry.spectrum.subtract_continuum(astrometry.wvl, astrometry.cube.data[:, coor[0], coor[1]])
@@ -416,7 +416,7 @@ def plot_maps(astrometry, gs=None, savefig=False):
 
     # draw borad centroids
     ax00.scatter(*astrometry.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40)
-    ax01.scatter(*astrometry.loc.core_Hb[:2] * 0.025e3, marker='x', c='gold', s=40)
+    #ax01.scatter(*astrometry.loc.core_Hb[:2] * 0.025e3, marker='x', c='gold', s=40)
     ax01.scatter(*astrometry.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40)
     ax02.scatter(*astrometry.loc.wing_OIII[:2] * 0.025e3, marker='x', c='gold', s=40, label='centroid')
     ax02.scatter(*astrometry.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40, label='AGN')
@@ -520,6 +520,7 @@ def print_result(astrometry):
         Print the spectroastrometry result
     """
 
+    print('\n')
     for component in astrometry.components:
         # [px]
         px, dpx = astrometry.get_offset(component)

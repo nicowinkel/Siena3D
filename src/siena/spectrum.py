@@ -256,7 +256,7 @@ class Spectrum(Cube):
                     # index in compound model of emission line
                     idx_eline = getattr(self.elines_par, eline).idx
 
-                    print(eline, idx_eline, ref, idx_ref) # inspect which elines are coupled to which
+                    # print(eline, idx_eline, ref, idx_ref) # inspect which elines are coupled to which
 
                     # (1) couple velocity based on rest-frame wavelengths
                     getattr(self.compound_model, 'mean_'+str(idx_eline)).tied = makeFunc_vel(self.compound_model,

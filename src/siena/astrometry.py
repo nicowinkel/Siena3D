@@ -54,9 +54,9 @@ class Astrometry(Cube):
         self.components = {'broad': ['Hb_broad', 'Hb_medium',
                                      'FeII4924_medium', 'FeII4924_broad',
                                      'FeII5018_medium', 'FeII5018_broad'],
-                           'core_Hb': ['Hb_core'],
-                           'core_OIII': ['OIII4959_core', 'OIII5007_core'],
-                           # 'wing_Hb':['Hb_wing'],
+                           #'core_Hb': ['Hb_core'],
+                           'core_OIII': ['Hb_core', 'OIII4959_core', 'OIII5007_core'],
+                           'wing_Hb':['Hb_wing'],
                            'wing_OIII': ['OIII4959_wing', 'OIII5007_wing']
                            }
 

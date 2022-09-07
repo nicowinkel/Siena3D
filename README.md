@@ -9,13 +9,12 @@ ESO VLT/MUSE. The technique can in principle be to 3D cubes obtained with other 
 SIENA is currently being developed.
 
 ## Installation instructions
-The easiest way to get started is to simply clone the repository:
+The easiest way to install Siena3D is to install the the PyPi Package: "pip install Siena3D"
 
-- The easiest way to get started is to simply clone the repository:
-  Got to the directory at which the package should be downloaded and execute "git clone https://github.com/nicowinkel/siena.git".
-  Alternatively the .zip file can be downloaded from https://github.com/nicowinkel/siena and extracted.
+Alternatively one can download the simply clone the repository:
+- "git clone https://github.com/nicowinkel/siena.git" or download the .zip file from https://github.com/nicowinkel/siena
 
-- Go to the "siena" sub-directory and install the package with "pip install ."
+- Go to the "Siena3D-main" sub-directory and install the package with "pip install ."
 
 
 ## Basic usage and commands
@@ -23,6 +22,8 @@ The code is run entirely from the command line, and is set up to run on the file
 An demo is provided in the "example/" folder where also the parameter files and an example data cube are located.
 
 SIENA can be run by executing the runall.py file: "python runall.py".
+
+*** More information tba ***
 
 ## Manual for more information on parameter file setup
 *** Information tba soon ***

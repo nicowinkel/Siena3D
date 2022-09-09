@@ -3,7 +3,7 @@ This file contains the spectrum class
 """
 
 from .cube import Cube
-import siena.plot
+import siena3d.plot
 
 import numpy as np
 import sys
@@ -85,7 +85,7 @@ class Spectrum(Cube):
             required to model the AGN spectrum. File comes with package.
         """
 
-        pkg = importlib_resources.files("siena")
+        pkg = importlib_resources.files("siena3d")
         pkg_eline_file = pkg / "data" / "eline_rf.txt"
         with pkg_eline_file.open() as f:
             lines = [line for line in f if not (line.startswith('#') or (line.split()==[]))]
@@ -190,7 +190,7 @@ class Spectrum(Cube):
                 else:
                     ref_name = None
                     factor = None
-                    
+
                 # index in compound model of reference line
                 idx_ref = getattr(self.elines_par, ref_name+'_'+component).idx
 
@@ -220,7 +220,7 @@ class Spectrum(Cube):
             return lambda model: (getattr(model, 'mean_'+str(idx_ref)) *
                                 (self.lambdarest[eline.split('_')[0]] / self.lambdarest[ref.split('_')[0]])
                                 )
-        
+
         def makeFunc_disp(model, idx_eline, idx_ref):
 
             """
@@ -261,7 +261,7 @@ class Spectrum(Cube):
                     # (1) couple velocity based on rest-frame wavelengths
                     getattr(self.compound_model, 'mean_'+str(idx_eline)).tied = makeFunc_vel(self.compound_model,
                                                                                              eline, idx_ref)
-                    
+
                     #lambda model: \
                     #    (getattr(model, 'mean_'+str(idx_ref)) *
                     #         (self.lambdarest[eline.split('_')[0]] / self.lambdarest[ref.split('_')[0]]))
@@ -275,8 +275,10 @@ class Spectrum(Cube):
                     #         getattr(model, 'mean_' + str(idx_eline)) / (getattr(model, 'mean_' + str(idx_ref))))
 
     def setup_eline_models(self):
+        """
+            scale all initial guess amplitudes w.r.t. maximum flux density in AGN spectrum
+        """
 
-        # scale all initial guess amplitudes w.r.t. maximum flux density in AGN spectrum
         a0 = np.nanmax(self.subtract_continuum(self.wvl,self.AGN_spectrum))
 
         # empty instance
@@ -288,7 +290,7 @@ class Spectrum(Cube):
                                       getattr(self.elines_par, eline).offset_init + self.lambdarest[eline.split('_')[0]],
                                       getattr(self.elines_par, eline).stddev_init
                                       )
- 
+
             setattr(eline_models, eline, model)
 
         return eline_models
@@ -331,10 +333,10 @@ class Spectrum(Cube):
         return eline, cont
 
     def fit(self):
-        
+
         # subtract power law continuum
         self.eline, self.cont = self.subtract_continuum(self.wvl, self.AGN_spectrum)
-        
+
         spectrum = Spectrum1D(flux=self.eline*u.Jy, spectral_axis=self.wvl*u.Angstrom,
                               uncertainty=StdDevUncertainty(self.AGN_error))
 
@@ -343,7 +345,7 @@ class Spectrum(Cube):
 
 
         self.write()
-        siena.plot.plot_AGNspec_model(self, savefig=True)
+        siena3d.plot.plot_AGNspec_model(self, savefig=True)
 
         return None
 

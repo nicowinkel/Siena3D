@@ -4,10 +4,7 @@ This file contains the cube class
 
 from .data import Data
 from .header import Header
-#from .spectrum1d import Spectrum1D
-#from time import sleep
-#from functools import partial
-#import signal
+
 import numpy as np
 from astropy.io import fits
 

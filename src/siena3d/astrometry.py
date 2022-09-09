@@ -4,8 +4,7 @@ This file contains the spectroastrometry class
 
 from .cube import Cube
 from .spectrum import Spectrum
-import siena.plot
-import pkg_resources
+import siena3d.plot
 
 import sys
 import os
@@ -70,7 +69,7 @@ class Astrometry(Cube):
             Prints the SIENA logo
         """
 
-        pkg = importlib_resources.files("siena")
+        pkg = importlib_resources.files("siena3d")
         pkg_logo_file = pkg / "data" / "logo.txt"
         with  pkg_logo_file.open() as f:
             logo = f.readlines()
@@ -675,8 +674,8 @@ class Astrometry(Cube):
 
         # print and plot results
         print(' [6] Print & plot result')
-        siena.plot.print_result(self)
+        siena3d.plot.print_result(self)
         self.write('.')
 
         # plot the result
-        siena.plot.plot_all(self, coor=[0,0])
+        siena3d.plot.plot_all(self, coor=[0,0])

@@ -1,4 +1,4 @@
-# SIENA
+# Siena3D
 
 ## Scope
 SIENA is a tool to analyse the morphology of the extended emission line region morphology in 3D spectroscopic observations of AGN.

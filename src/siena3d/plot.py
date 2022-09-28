@@ -1,6 +1,7 @@
 """
 This file contains the plotting functions
 """
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -10,6 +11,7 @@ from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 from matplotlib.colors import LogNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from astropy import units as u
+from astropy.io import fits
 from astropy.cosmology import WMAP9 as cosmo
 
 # linestyles
@@ -194,6 +196,152 @@ def plot_AGNspec_model(spectrum,axes=None, savefig=True, path='Output/'):
 
 # Functions for spectroastrometry class
 
+def plotly_spectrum(spectrum):
+
+    """
+    Generates an interactive HTML plot of the best fit model
+    """
+
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    plt.style.use('dark_background')  # For cool tron-style dark plots
+
+    # Open the best_fit_components file
+    hdu = fits.open(os.path.join("Output", "best_model_components.fits"))
+    tbdata = hdu[1].data  # FITS table data is stored on FITS extension 1
+    cols = [i.name for i in tbdata.columns]
+    hdu.close()
+
+    # Create a figure with subplots
+    fig = make_subplots(rows=2, cols=1, row_heights=(3, 1))
+    # tracenames = []
+    # Plot
+
+
+    tracename = "Data"
+    fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata["data"], mode="lines",
+                             line=go.scatter.Line(color="black", width=1), name=tracename, legendrank=1,
+                             showlegend=True), row=1, col=1)
+    tracename = "Model"
+    fig.add_trace(
+        go.Scatter(x=tbdata["wvl"], y=tbdata["eline_model"] + tbdata["powerlaw"], mode="lines",
+                   line=go.scatter.Line(color="red", width=1),
+                   name=tracename, legendrank=2, showlegend=True), row=1, col=1)
+    #tracename = "Noise"
+    #fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata["error"], mode="lines",
+    #                         line=go.scatter.Line(color="#FE00CE", width=1), name=tracename, legendrank=3,
+    #                         showlegend=True), row=1, col=1)
+
+    tracename = "Power-law"
+    fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata["powerlaw"], mode="lines",
+                             line=go.scatter.Line(color="red", width=1, dash="dash"), name=tracename,
+                             legendrank=5, showlegend=True), row=1, col=1)
+
+    # emission line components
+
+    colors = ["#00B5F7", "#22FFA7", "#FC0080", "#DA16FF", "rgb(153,201,59)"]
+    for idx, comp in enumerate(spectrum.components):
+        for eline in spectrum.components[comp]:
+            # tracename="narrow line"
+            fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata[eline], mode="lines",
+                                     line=go.scatter.Line(color=colors[idx], width=1), name=eline.split('_')[0],
+                                     legendgroup=comp, legendgrouptitle_text=comp, legendrank=11+idx),
+                                    row=1, col=1)
+        # tracenames.append(tracename)
+        '''
+        if line_list[comp]["line_type"]=="br":
+              # tracename="broad line"
+            fig.add_trace(go.Scatter( x = tbdata["wvl"], y = tbdata[comp], mode="lines", line=go.scatter.Line(color="#22FFA7", width=1), name=comp, legendgroup="broad lines",legendgrouptitle_text="broad lines", legendrank=13,), row=1, col=1)
+              # tracenames.append(tracename)
+        if line_list[comp]["line_type"]=="out":
+              # tracename="outflow line"
+            fig.add_trace(go.Scatter( x = tbdata["wvl"], y = tbdata[comp], mode="lines", line=go.scatter.Line(color="#FC0080", width=1), name=comp, legendgroup="outflow lines",legendgrouptitle_text="outflow lines", legendrank=14,), row=1, col=1)
+              # tracenames.append(tracename)
+        if line_list[comp]["line_type"]=="abs":
+              # tracename="absorption line"
+            fig.add_trace(go.Scatter( x = tbdata["wvl"], y = tbdata[comp], mode="lines", line=go.scatter.Line(color="#DA16FF", width=1), name=comp, legendgroup="absorption lines",legendgrouptitle_text="absorption lines", legendrank=15,), row=1, col=1)
+              # tracenames.append(tracename)
+        if line_list[comp]["line_type"]=="user":
+              # tracename="absorption line"
+            fig.add_trace(go.Scatter( x = tbdata["wvl"], y = tbdata[comp], mode="lines", line=go.scatter.Line(color="rgb(153,201,59)", width=1), name=comp, legendgroup="user lines",legendgrouptitle_text="user lines", legendrank=16,), row=1, col=1)
+              # tracenames.append(tracename)
+        '''
+    fig.add_hline(y=0.0, line=dict(color="gray", width=2), row=1, col=1)
+
+    # Plot bad pixels
+    # lam_gal = tbdata["wvl"]
+    # ibad = [i for i in range(len(lam_gal)) if i not in fit_mask]
+    # if (len(ibad)>0):# and (len(ibad[0])>1):
+    # 	bad_wvl = [(lam_gal[m],lam_gal[m+1]) for m in ibad if ((m+1)<len(lam_gal))]
+    # 	# ax1.axvspan(bad_wvl[0][0],bad_wvl[0][0],alpha=0.25,color='xkcd:lime green',label="bad pixels")
+    # 	fig.add_vrect(
+    # 					x0=bad_wvl[0][0], x1=bad_wvl[0][0],
+    # 					fillcolor="rgb(179,222,105)", opacity=0.25,
+    # 					layer="below", line_width=0,name="bad pixels",
+    # 					),
+    # 	for i in bad_wvl[1:]:
+    # 		# ax1.axvspan(i[0],i[0],alpha=0.25,color='xkcd:lime green')
+    # 		fig.add_vrect(
+    # 						x0=i[0], x1=i[1],
+    # 						fillcolor="rgb(179,222,105)", opacity=0.25,
+    # 						layer="below", line_width=0,name="bad pixels",
+    # 					),
+
+    '''
+    # Residuals
+    fig.add_trace(go.Scatter( x = tbdata["wvl"], y = tbdata["RESID"], mode="lines", line=go.scatter.Line(color="white"  , width=1), name="Residuals", showlegend=False), row=2, col=1)
+    fig.add_trace(go.Scatter( x = tbdata["wvl"], y = tbdata["NOISE"], mode="lines", line=go.scatter.Line(color="#FE00CE"  , width=1), name="Noise", showlegend=False, legendrank=3,), row=2, col=1)
+    # Figure layout, size, margins
+    fig.update_layout(
+        autosize=False,
+        width=1700,
+        height=800,
+        margin=dict(
+            l=100,
+            r=100,
+            b=100,
+            t=100,
+            pad=1
+        ),
+        title= objname,
+        font_family="Times New Roman",
+        font_size=16,
+        font_color="white",
+        legend_title_text="Components",
+        legend_bgcolor="black",
+        paper_bgcolor="black",
+        plot_bgcolor="black",
+    )
+    '''
+    # Update x-axis properties
+    fig.update_xaxes(title=r"$\Large\lambda_{\rm{rest}}\;\left[Å\right]$", linewidth=0.5, linecolor="gray", mirror=True,
+                     gridwidth=1, gridcolor="#222A2A", zerolinewidth=2, zerolinecolor="#222A2A",
+                     row=1, col=1)
+    fig.update_xaxes(title=r"$\Large\lambda_{\rm{rest}}\;\left[Å\right]$", linewidth=0.5, linecolor="gray", mirror=True,
+                     gridwidth=1, gridcolor="#222A2A", zerolinewidth=2, zerolinecolor="#222A2A",
+                     row=2, col=1)
+    # Update y-axis properties
+    fig.update_yaxes(title=r"$\Large f_\lambda\;\left[\rm{erg}\;\rm{cm}^{-2}\;\rm{s}^{-1}\;Å^{-1}\right]$",
+                     linewidth=0.5, linecolor="gray", mirror=True,
+                     gridwidth=1, gridcolor="#222A2A", zerolinewidth=2, zerolinecolor="#222A2A",
+                     row=1, col=1)
+    fig.update_yaxes(title=r"$\Large\Delta f_\lambda$", linewidth=0.5, linecolor="gray", mirror=True,
+                     gridwidth=1, gridcolor="#222A2A", zerolinewidth=2, zerolinecolor="#222A2A",
+                     row=2, col=1)
+
+    fig.update_xaxes(matches='x')
+    # fig.update_yaxes(matches='y')
+    # fig.show()
+
+    # Write to HTML
+    fig.write_html(os.path.join("Output", "AGNspec_model.html"), include_mathjax="cdn")
+    # Write to PDF
+    # fig.write_image(run_dir.joinpath("%s_bestfit.pdf" % objname))
+
+    fig.show()
+    return None
+
 def plot_spectrum(astrometry, coor=None, gs=None, savefig=False):
 
     """
@@ -337,7 +485,7 @@ def plot_maps(astrometry, gs=None, savefig=False):
                      norm=LogNorm(vmin=2e-2, vmax=1))
     scalebar(ax00, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
 
-    component = 'core_OIII'
+    component = 'core'
     fluxmap = getattr(astrometry.fluxmap, component)
     ax01 = plt.subplot(gs[0, 1])
     cmap = mpl.cm.get_cmap('gist_earth_r')
@@ -345,7 +493,7 @@ def plot_maps(astrometry, gs=None, savefig=False):
                      norm=LogNorm(vmin=2e-2, vmax=1))
     scalebar(ax01, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
 
-    component = 'wing_OIII'
+    component = 'wing'
     fluxmap = getattr(astrometry.fluxmap, component)
     ax02 = plt.subplot(gs[0, 2])
     cmap = mpl.cm.get_cmap('gist_earth_r')
@@ -365,7 +513,7 @@ def plot_maps(astrometry, gs=None, savefig=False):
                      norm=LogNorm(vmin=2e-2, vmax=1))
     # scalebar(ax10, astrometry.cz, c='k', loc=(.5,.18), distance='50pc')
 
-    component = 'core_OIII'
+    component = 'core'
     fluxmap = getattr(astrometry.fluxmodel, component)
     ax11 = plt.subplot(gs[1, 1])
     cmap = mpl.cm.get_cmap('gist_earth_r')
@@ -373,7 +521,7 @@ def plot_maps(astrometry, gs=None, savefig=False):
                      norm=LogNorm(vmin=2e-2, vmax=1))
     # scalebar(ax10, astrometry.cz, c='k', loc=(.5,.18), distance='50pc')
 
-    component = 'wing_OIII'
+    component = 'wing'
     fluxmap = getattr(astrometry.fluxmodel, component)
     ax12 = plt.subplot(gs[1, 2])
     cmap = mpl.cm.get_cmap('gist_earth_r')
@@ -394,7 +542,7 @@ def plot_maps(astrometry, gs=None, savefig=False):
     im = ax20.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
     scalebar(ax20, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
 
-    component = 'core_OIII'
+    component = 'core'
     residuals = (getattr(astrometry.fluxmap, component)
                  - getattr(astrometry.fluxmodel, component)
                  ) / getattr(astrometry.fluxmap, component)
@@ -403,7 +551,7 @@ def plot_maps(astrometry, gs=None, savefig=False):
     im = ax21.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
     scalebar(ax21, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
 
-    component = 'wing_OIII'
+    component = 'wing'
     residuals = (getattr(astrometry.fluxmap, component)
                  - getattr(astrometry.fluxmodel, component)
                  ) / getattr(astrometry.fluxmap, component)
@@ -521,7 +669,7 @@ def print_result(astrometry):
     """
 
     print('\n')
-    for component in astrometry.components:
+    for component in astrometry.spectrum.components:
         # [px]
         px, dpx = astrometry.get_offset(component)
 
@@ -543,7 +691,7 @@ def print_result(astrometry):
     # print flux
 
     print('\n')
-    for component in astrometry.components:
+    for component in astrometry.spectrum.components:
         print('%15s  F = (%2.2f \u00B1% 2.2f) x %15s' % (component,
                                                          np.nansum(getattr(astrometry.fluxmap, component)),
                                                          np.nansum(getattr(astrometry.errmap, component)),

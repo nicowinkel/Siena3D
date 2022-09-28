@@ -39,8 +39,8 @@ class Data(Header):
         Contains information for reading and writing data to and from Fits
         files.
     """
-    def __init__(self, data=None, wave=None, error=None, mask=None, error_weight=None, normalization=None, inst_fwhm=None,
-    header=None):
+    def __init__(self, data=None, wave=None, error=None, mask=None, error_weight=None, normalization=None,
+                 inst_fwhm=None, header=None):
         Header.__init__(self, header=header)
         self._data = data
         if data is not None:

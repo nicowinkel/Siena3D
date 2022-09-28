@@ -7,6 +7,7 @@ import siena3d.plot
 
 import numpy as np
 import sys
+from pathlib import Path
 from astropy.modeling import models, fitting
 from astropy import units as u
 from astropy.table import Table
@@ -42,22 +43,23 @@ class Eline(object):
 class Spectrum(Cube):
 
     """
-    A class contains the spectrum properties and performs a modelling of the AGN spectrum.
+        A class representing 1D spectra.
 
-    Parameters
-    ----------
-    Cube: cube object from which attributes can be inherited
+        `Spectra` is a subclass of Cube which allows for handling and organizing of
+        one-dimensional spectrum. The class supports a multi-Gaussian model fitting
+        of AGN spectra.
+
+        Parameters
+        ----------
+        cube : `siena.cube`
+            cube object from which attributes can be inherited
+        wvl_start : `float`, optional
+            lower wavelength limit of the AGN spectrum modelling.
+        wvl_end : `float`, optional
+            lower wavelength limit of the AGN spectrum modelling.
     """
 
     def __init__(self, cube, wvl_start=4750, wvl_end=9300):
-
-        self.components = {'broad': ['Hb_broad', 'Hb_medium',
-                                     'FeII4924_medium', 'FeII4924_broad',
-                                     'FeII5018_medium', 'FeII5018_broad'],
-                           'core': ['Hb_core', 'OIII4959_core', 'OIII5007_core'],
-                           # 'wing_Hb':['Hb_wing'],
-                           'wing': ['OIII4959_wing', 'OIII5007_wing']
-                           }
 
         # init parameters
         self.fit_range = (wvl_start*u.Angstrom, wvl_end*u.Angstrom)     # wavelength window for fit
@@ -69,7 +71,7 @@ class Spectrum(Cube):
 
         # load data from input files in working directory
         self.lambdarest = self.load_lambdarest()                        # rest-frame wavelengths of emission lines
-        self.elines_par = self.load_elines_par()                        # loads eline.par file
+        self.elines_par, self.components = self.load_elines_par()       # loads eline.par file
         self.incl_cont = self.load_incl_cont()                          # loads eline.par file
 
         # setup emission line models
@@ -83,6 +85,11 @@ class Spectrum(Cube):
         """
             Read in the rest-frame wavelengths of the emission lines
             required to model the AGN spectrum. File comes with package.
+
+            Returns
+            -------
+            lambdarest: `dictionary`
+                emission line names with values of their rest-frame central wavelengths
         """
 
         pkg = importlib_resources.files("siena3d")
@@ -108,13 +115,23 @@ class Spectrum(Cube):
             ----------
             path : `string`
                 relative path to elines.par file
+
+            Returns
+            -------
+            elines: `instance`
+                object of type 'Eline' with the initial guess paramters
+            components: `dictionary`
+                dictionary with the list of emission lines contained in each of the kinematic components
         """
 
         elines_file = path + "elines.par"
         with open(elines_file) as f:
             lines = [line for line in f if not (line.startswith('#') or (line.split() == []))]
 
+
         elines = type('', (), {})()
+        components = {}
+
         for idx, line in enumerate(lines):
 
             eline, component, tied, amp_init, offset_init, stddev_init = line.split()
@@ -122,7 +139,13 @@ class Spectrum(Cube):
                     Eline(component, tied, float(amp_init), float(offset_init), float(stddev_init), idx)
                     )
 
-        return elines
+            # new key for every kin. component
+            if component not in components.keys():
+                components[component] = [eline]
+            else:
+                components[component].append(eline)
+
+        return elines, components
 
     def load_incl_cont(self, path='./'):
 
@@ -133,6 +156,11 @@ class Spectrum(Cube):
             ----------
             path : `string`
                 relative path to incl.cont file
+
+            Returns
+            -------
+            incl_cont: `dictionary`
+                values contain start and end wavelength of the regions
         """
 
         para_file = path + "incl.cont"
@@ -149,6 +177,24 @@ class Spectrum(Cube):
 
     def load_spectrum(self, file=None):
 
+        """
+            Read in 1D spectrum from fits file
+
+            Parameters
+            ----------
+            file : `string`
+                relative path to incl.cont file
+
+            Returns
+            -------
+            wvl: `numpy array`
+                wavelength array, truncated to range of the AGN fit
+            spec: `numpy array`
+                flux array
+            error: `numpy array`
+                flux error array
+        """
+
         with fits.open(file) as hdul:
             wvl = hdul[0].data
             spec = hdul[1].data
@@ -156,7 +202,11 @@ class Spectrum(Cube):
 
         select = [(wvl>self.fit_range[0].value) & (wvl<self.fit_range[1].value)]
 
-        return wvl[select], spec[select], err[select]
+        wvl = wvl[select]
+        spec = spec[select]
+        err = err[select]
+
+        return wvl, spec, err
 
     def couple_amplitudes(self):
 
@@ -262,23 +312,23 @@ class Spectrum(Cube):
                     getattr(self.compound_model, 'mean_'+str(idx_eline)).tied = makeFunc_vel(self.compound_model,
                                                                                              eline, idx_ref)
 
-                    #lambda model: \
-                    #    (getattr(model, 'mean_'+str(idx_ref)) *
-                    #         (self.lambdarest[eline.split('_')[0]] / self.lambdarest[ref.split('_')[0]]))
-
                     # (2) couple dispersion based on rest-frame wavelengths
                     getattr(self.compound_model, 'stddev_'+str(idx_eline)).tied = makeFunc_disp(self.compound_model,
                                                                                                 idx_eline, idx_ref)
 
-                    #lambda model: \
-                    #    (getattr(model, 'stddev_'+str(idx_ref)) *
-                    #         getattr(model, 'mean_' + str(idx_eline)) / (getattr(model, 'mean_' + str(idx_ref))))
 
     def setup_eline_models(self):
+
         """
-            scale all initial guess amplitudes w.r.t. maximum flux density in AGN spectrum
+            Set up emission line models
+
+            Returns
+            -------
+            eline_models: `instance`
+                astropy models generated from the inital guess parameters
         """
 
+        # Scale all initial guess amplitudes w.r.t. maximum flux density in AGN spectrum
         a0 = np.nanmax(self.subtract_continuum(self.wvl,self.AGN_spectrum))
 
         # empty instance
@@ -297,8 +347,15 @@ class Spectrum(Cube):
 
     def setup_compound_model(self):
 
-        # from all emission lines found in the QSO spectrum
-        # this function kinematically ties the components that stem from the same region
+        """
+            Generates a model from all individual emission line models.
+            The output can be used by a fitter to find the best solution.
+
+            Returns
+            -------
+            compound_model: `astropy.models Gaussian`
+                combined model from the individual astropy models of the emission lines
+        """
 
         # get all eline_models in component
         basemodels = np.full(len(self.elines_par.__dict__), models.Gaussian1D())
@@ -316,7 +373,26 @@ class Spectrum(Cube):
 
         return compound_model
 
-    def subtract_continuum(self,wvl,spectrum):
+    def subtract_continuum(self, wvl, spectrum):
+
+        """
+            Subtract a power-law continuum from a spectrum.
+            The regions used to fit the continuum are specified in the incl.cont file
+
+            Parameters
+            -------
+            wvl: `numpy array`
+                wavelength array
+            spectrum: `numpy array`
+                spectrum from which the continuum shall be subtracted
+
+            Returns
+            -------
+            wvl: `numpy array`
+                wavelength array
+            spectrum: `numpy array`
+                AGN continuum subtracted spectrum
+        """
 
         select = np.zeros(wvl.shape).astype(bool)
         for i in self.incl_cont:
@@ -334,6 +410,10 @@ class Spectrum(Cube):
 
     def fit(self):
 
+        """
+        Executes the workflow for fitting the 1D AGN spectrum.
+        """
+
         # subtract power law continuum
         self.eline, self.cont = self.subtract_continuum(self.wvl, self.AGN_spectrum)
 
@@ -345,11 +425,18 @@ class Spectrum(Cube):
 
 
         self.write()
-        siena3d.plot.plot_AGNspec_model(self, savefig=True)
+
+        #siena3d.plot.plot_AGNspec_model(self, savefig=True)
+        siena3d.plot.plotly_spectrum(self)
 
         return None
 
     def write(self, path='Output/'):
+
+        """
+            Writes (1) a table that contains the best-fit parameters of the emission line model
+                   (1) a table that contains the spectra of the best-fit components
+        """
 
         # (1) par_table
         t = Table([[eline for eline in self.elines_par.__dict__],
@@ -364,7 +451,16 @@ class Spectrum(Cube):
 
         t = Table()
         t['wvl'] = self.wvl
+        t['data'] = self.AGN_spectrum
+        t['error'] = self.AGN_error
+        t['eline_model'] = self.eline_model.value
+        t['powerlaw'] = self.cont
+
+        # ???
+
         for idx,eline in enumerate(self.elines_par.__dict__):
             t[eline] = self.bestfit_model[idx](self.wvl*u.Angstrom).value
 
         t.write(path+'best_model_components.fits', overwrite=True)
+
+        return None

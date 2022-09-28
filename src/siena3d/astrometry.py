@@ -48,17 +48,6 @@ class Astrometry(Cube):
         # load object-specific parameters
         self.load_parameters_par()
 
-        # setup components to which emission lines belong
-
-        self.components = {'broad': ['Hb_broad', 'Hb_medium',
-                                     'FeII4924_medium', 'FeII4924_broad',
-                                     'FeII5018_medium', 'FeII5018_broad'],
-                           #'core_Hb': ['Hb_core'],
-                           'core_OIII': ['Hb_core', 'OIII4959_core', 'OIII5007_core'],
-                           'wing_Hb':['Hb_wing'],
-                           'wing_OIII': ['OIII4959_wing', 'OIII5007_wing']
-                           }
-
         # setup working data
         self.print_logo()
 
@@ -168,44 +157,6 @@ class Astrometry(Cube):
 
         return table
 
-    '''
-    def setup_eline_models(self, wvl, par_table):
-
-        """
-            Set up astropy models from initial guess parameters
-            in the AGNfit table
-
-            Parameters
-            ----------
-            wvl : `numpy array`
-                wavelength array
-            par_table : `astropy table`
-                contains emission line parameters
-
-            Returns
-            -------
-            eline_models: `dictionary`
-                contains the Gaussian 1D models generated from the input eline table paramters
-
-        """
-
-        eline_models = type('', (), {})()  # empty object
-
-        for eline in self.elines:
-
-            # find row in which eline parameters are listed
-            idx = np.argwhere(par_table['eline'] == eline)
-            param = [par_table['amplitude'][idx].value[0],
-                     par_table['mean'][idx].value[0],
-                     par_table['stddev'][idx].value[0]]
-
-            # adopt model if parameters are finite
-            if ~(np.any(np.isnan(param)) or np.any((param == 0))):
-                eline_model = models.Gaussian1D(*param)
-                setattr(eline_models, eline, eline_model)
-
-        return eline_models
-    '''
     def setup_basis_models(self, gaussmodels, components):
 
         """
@@ -271,7 +222,7 @@ class Astrometry(Cube):
 
         basis = type('', (), {})()  # empty object to store spetra
 
-        for component in tqdm(self.components.keys()):
+        for component in tqdm(self.spectrum.components.keys()):
             spectrum = getattr(self.basis_models, component)(wvl)
             spectrum_norm = spectrum / np.nansum(spectrum)
 
@@ -305,19 +256,19 @@ class Astrometry(Cube):
         # Subtract continuum
         spec_eline, continuum = self.spectrum.subtract_continuum(wvl, spectrum)
 
-        A = np.zeros([wvl.shape[0], len(self.components.keys())])
+        A = np.zeros([wvl.shape[0], len(self.spectrum.components.keys())])
 
-        for idx, i in enumerate(self.components.keys()):
+        for idx, i in enumerate(self.spectrum.components.keys()):
             A[:, idx] = getattr(self.basis, i)
 
         b = spec_eline
         w = 1 / error
 
-        wmatrix = np.full((len(self.components), w.shape[0]), w).T
+        wmatrix = np.full((len(self.spectrum.components), w.shape[0]), w).T
 
         popt, rnorm = nnls(A * wmatrix, b * w)
         model_spec = np.zeros(spec_eline.shape)
-        for idx, i in enumerate(self.components.keys()):
+        for idx, i in enumerate(self.spectrum.components.keys()):
             model_spec += popt[idx] * getattr(self.basis, i)
 
         return popt, model_spec
@@ -373,7 +324,7 @@ class Astrometry(Cube):
                 Has the same shape as flux.
         """
 
-        scalefactor_map = np.full([data.shape[1], data.shape[2], len(self.components)], np.nan)
+        scalefactor_map = np.full([data.shape[1], data.shape[2], len(self.spectrum.components)], np.nan)
         dscalefactor_map = np.copy(scalefactor_map)
 
         for i in tqdm(np.arange(data.shape[1])):
@@ -381,7 +332,7 @@ class Astrometry(Cube):
 
                 spec = data[:, i, j]
                 err = error[:, i, j]
-                error_expanded = np.full((len(self.components), err.shape[0]), err).T
+                error_expanded = np.full((len(self.spectrum.components), err.shape[0]), err).T
 
                 # linear regression
                 # fit use fluxes as fitparameter rather than amplitudes!
@@ -389,7 +340,7 @@ class Astrometry(Cube):
                 scalefactor_map[i, j] = scalefactor
 
                 # MC error estimation
-                scalefactor_mcmc = np.zeros((30, len(self.components)))
+                scalefactor_mcmc = np.zeros((30, len(self.spectrum.components)))
                 for k in np.arange(30):
                     spec_mcmc = self.mock_spec(wvl, spec, err)
                     scalefactork, _ = self.fit_spectrum(wvl, spec_mcmc, err)
@@ -405,7 +356,7 @@ class Astrometry(Cube):
 
         flux = type('', (), {})()
         dflux = type('', (), {})()
-        for idx, component in enumerate(self.components.keys()):
+        for idx, component in enumerate(self.spectrum.components.keys()):
             setattr(flux, component, scalefactor_map[:, :, idx])
             setattr(dflux, component, dscalefactor_map[:, :, idx])
 
@@ -508,7 +459,7 @@ class Astrometry(Cube):
         locs = type('', (), {})()
 
         # Fit Moffat PSF to each of the components light profiles
-        for component in tqdm(self.components):
+        for component in tqdm(self.spectrum.components):
 
             image = getattr(self.fluxmap, component)
             error = getattr(self.errmap, component)
@@ -562,7 +513,7 @@ class Astrometry(Cube):
             Print the spectroastrometry result
         """
         print('\n')
-        for component in self.components:
+        for component in self.spectrum.components:
             # [px]
             px, dpx = self.get_offset(component)
 
@@ -584,7 +535,7 @@ class Astrometry(Cube):
         # print flux
 
         print('\n')
-        for component in self.components:
+        for component in self.spectrum.components:
             print('%15s  F = (%2.2f \u00B1% 2.2f) x %15s' % (component,
                                                              np.nansum(getattr(self.fluxmap, component)),
                                                              np.nansum(getattr(self.errmap, component)),
@@ -617,7 +568,7 @@ class Astrometry(Cube):
 
         self.makedir(path)
 
-        for component in self.components:
+        for component in self.spectrum.components:
 
             fluxmap = getattr(self.fluxmap, component)
             dfluxmap = getattr(self.errmap, component)
@@ -655,7 +606,7 @@ class Astrometry(Cube):
 
         # combine astropy models
         #print(' [2] Setup basis')
-        self.basis_models = self.setup_basis_models(self.spectrum.eline_models, self.components)
+        self.basis_models = self.setup_basis_models(self.spectrum.eline_models, self.spectrum.components)
 
         # initialize arrays containing normalized spectra
         self.basis = self.setup_basis_arrays(self.wvl, self.basis_models)
@@ -671,7 +622,7 @@ class Astrometry(Cube):
         # find centroid for each of the kinematic components' light distribution
         print(' [5] Find centroids')
         self.fluxmodel, self.loc = self.get_loc(bootstrapping=True)
-
+        
         # print and plot results
         print(' [6] Print & plot result')
         siena3d.plot.print_result(self)

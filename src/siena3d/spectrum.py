@@ -249,7 +249,7 @@ class Spectrum(Cube):
                 # set compound model value to (some factor) x (reference line value)
                 # which is an attribute of the compound model
                 getattr(self.compound_model, 'amplitude_'+str(idx_eline)).tied = makeFunc_amplitude(self.compound_model,
-                                                                                                   factor, idx_ref)
+                                                                                                    factor, idx_ref)
 
         return None
 
@@ -337,7 +337,7 @@ class Spectrum(Cube):
         for eline in self.elines_par.__dict__:
 
             model = models.Gaussian1D(getattr(self.elines_par, eline).amp_init * a0,
-                                      getattr(self.elines_par, eline).offset_init + self.lambdarest[eline.split('_')[0]],
+                                      self.lambdarest[eline.split('_')[0]]+getattr(self.elines_par, eline).offset_init,
                                       getattr(self.elines_par, eline).stddev_init
                                       )
 
@@ -348,7 +348,7 @@ class Spectrum(Cube):
     def setup_compound_model(self):
 
         """
-            Generates a model from all individual emission line models.
+            Generates a model from the individual emission line models.
             The output can be used by a fitter to find the best solution.
 
             Returns

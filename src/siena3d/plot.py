@@ -76,41 +76,33 @@ def colorbar(cax, mappable, orientation="vertical", ticks=None, label=None, font
     return cb
 
 
-def scalebar(ax, cz, loc=(0.5, 0.5), c='k', distance='50pc'):
+def scalebar(ax, astrometry, loc=(0.5, 0.5), c='k', distance=50):
+
+    """
+        Plots distance scale bar to given axis. Distance parameters cz, pxsize
+        must be specified as attributes of astrometry object.
+
+        Parameters
+        ----------
+        ax : `matplotlib.pyplot.axes`
+            axis to which the scale bar will be added
+        astrometry : `Siena3D.Astrometry` [optional]
+            object from which the distance parameters will be adopted.
+        loc : `tuple` [optional]
+            location of the scale bar in fraction of axis coordinates.
+        c : `matplotlib colour` [optional]
+            scale bar color
+        distance: 'float'
+            distance in [kpc] that the scale bar resembles
+    """
+
+    arcsec_per_kpc = 1 / cosmo.kpc_proper_per_arcmin(astrometry.cz / 3e5).value * 60 * 1e3
+
+    # compute width and hight in coordinates of the plot
     xextent = ax.get_xlim()[1] - ax.get_xlim()[0]
     yextent = ax.get_ylim()[1] - ax.get_ylim()[0]
-
-    arcsec_per_kpc = 1 / cosmo.kpc_proper_per_arcmin(cz / 3e5).value * 60 * 1e3
-    size_vertical = 1e-2 * yextent
-
     height = 3e-2 * yextent
-
-    if distance == '50pc':
-        width = .05 * arcsec_per_kpc
-        label = r'$50\,$pc'
-
-    elif distance == '100pc':
-        width = .1 * arcsec_per_kpc
-        label = r'$100\,$pc'
-
-    elif distance == '500pc':
-        width = .5 * arcsec_per_kpc
-        label = r'$500\,$pc'
-
-    elif distance == '1kpc':
-        width = 1 * arcsec_per_kpc
-        label = r'$1\,$kpc'
-
-    elif distance == '5kpc':
-        width = 5 * arcsec_per_kpc
-        label = r'$5\,$kpc'
-
-    elif distance == '10kpc':
-        width = 10 * arcsec_per_kpc
-        label = r'$10\,$kpc'
-
-    else:
-        raise ValueError('Specify distance scale!')
+    width = distance/1e3 * arcsec_per_kpc / astrometry.pxsize / 1e3
 
     xy = (loc[0] - width / xextent / 2, loc[1] - height / yextent / 2)
 
@@ -120,8 +112,7 @@ def scalebar(ax, cz, loc=(0.5, 0.5), c='k', distance='50pc'):
     ax.add_patch(rect)
 
     tloc = (loc[0], xy[1] - 3 * (height / yextent))
-    ax.text(*tloc, label, c=c, fontsize=15, ha='center', va='center', transform=ax.transAxes)
-
+    ax.text(*tloc, r'$%s\,$pc' % str(distance), c=c, fontsize=15, ha='center', va='center', transform=ax.transAxes)
 
 # Functions for sspectrum class
 
@@ -427,7 +418,7 @@ def plot_spectrum(astrometry, speccoor=[0,0], gs=None, savefig=False):
         plt.savefig('Output/Spectroastrometry_spec.png', bbox_inches='tight', dpi=300)
 
 
-def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=False):
+def plot_maps(astrometry, speccoor=[0,0], gs=None, mapcomp=['broad', 'core', 'wing'], savefig=False):
     """
         Plots maps of the kinematic components
 
@@ -439,12 +430,11 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
             saves plot as .png file
     """
 
-    extent = np.array([-(astrometry.cube.ncrop) / 2, (astrometry.cube.ncrop) / 2,
-                       -(astrometry.cube.ncrop) / 2, (astrometry.cube.ncrop) / 2
-                       ]
+    extent = np.array([-astrometry.cube.ncrop / 2, astrometry.cube.ncrop / 2,
+                       -astrometry.cube.ncrop / 2, astrometry.cube.ncrop / 2]
                       )
 
-    extent *= astrometry.pxsize * 1e3  # implement cellsize in cube!
+    #extent *= astrometry.pxsize * 1e3  # implement cellsize in cube!
 
     if gs == None:
         fig = plt.figure(figsize=(9, 2 + 1.5 * len(astrometry.fluxmap.__dict__)), dpi=150)
@@ -458,7 +448,7 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
         ax = plt.subplot(gs[0, idx])
         im = ax.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                        norm=LogNorm(vmin=2e-2, vmax=1))
-        scalebar(ax, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+        scalebar(ax, astrometry, c='k', loc=(.5, .22), distance=50)
 
         # annotations
         ax.annotate(comp, xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
@@ -470,7 +460,7 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
         ax.tick_params(axis='both', labelbottom=False)
-        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$', labelpad=-7)
         else: ax.tick_params(axis='both', labelleft=False)
 
         # colorbar
@@ -479,6 +469,11 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
             cbarlabel = r'$ \Sigma$'
             colorbar(ax, im, label=cbarlabel)
 
+        # highlight pixel from which spectrum fit is shown
+        if idx == 0:
+            x = np.array([speccoor[0], speccoor[0], speccoor[0]+1, speccoor[0]+1, speccoor[0]])
+            y = np.array([speccoor[0], speccoor[0]+1, speccoor[0]+1, speccoor[0], speccoor[0]])
+            ax.plot(x,y, color='r', linewidth=2)
 
 
     # Row 2: Model light distribution
@@ -487,7 +482,7 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
         ax = plt.subplot(gs[1, idx])
         im = ax.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
                        norm=LogNorm(vmin=2e-2, vmax=1))
-        scalebar(ax, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+        scalebar(ax, astrometry, c='k', loc=(.5, .22), distance=50)
         if idx == len(mapcomp) - 1:
             cbarlabel = r'$ \Sigma$'
             # colorbar(im, label=cbarlabel)
@@ -498,32 +493,26 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
                     ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
 
         # centroid location
-        # add the location of the component, which is measured relative to the PSF position,
-        # to the PSF's offset from zero (i.e. half the image size)
-        # flipped sign for y-axis due to origin=lower argument
+        # add the location of the component, which is measured in coordinates of the minicube pixels
 
-        ax.scatter((astrometry.loc.broad[0] + (astrometry.PSFmodel.x_0.value - astrometry.cube.ncrop / 2)) \
-                   * astrometry.pxsize * 1000,
-                   (astrometry.loc.broad[1] + (astrometry.PSFmodel.y_0.value - astrometry.cube.ncrop / 2)) \
-                   * astrometry.pxsize * 1000,
+        ax.scatter(astrometry.loc.broad[0] + extent[0],
+                   astrometry.loc.broad[1] + extent[2],
                    marker='x', c='firebrick', s=40, label='AGN')
         if idx > 0:
-            ax.scatter((getattr(astrometry.loc, comp)[0] + (astrometry.PSFmodel.x_0.value - astrometry.cube.ncrop / 2)) \
-                       * astrometry.pxsize * 1000,
-                       (getattr(astrometry.loc, comp)[1] + (astrometry.PSFmodel.y_0.value - astrometry.cube.ncrop / 2)) \
-                       * astrometry.pxsize * 1000,
+            ax.scatter(getattr(astrometry.loc, comp)[0] + extent[0],
+                       getattr(astrometry.loc, comp)[1] + extent[2],
                        marker='x', c='gold', s=40, label='centroid')
 
         # add legend
         if idx == len(mapcomp) - 1:
             legend = ax.legend(fontsize=8, bbox_to_anchor=(0.98, 0.98), loc='upper right', framealpha=.5)
-            legend.get_frame().set_alpha(.4)
+            #legend.get_frame()._alpha(.4)
 
         # axes labels and ticks
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
         ax.tick_params(axis='both', labelbottom=False)
-        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$', labelpad=-7)
         else: ax.tick_params(axis='both', labelleft=False)
 
         # colorbar
@@ -541,7 +530,7 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
 
         ax = plt.subplot(gs[2, idx])
         im = ax.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
-        scalebar(ax, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+        scalebar(ax, astrometry, c='k', loc=(.5, .22), distance=50)
 
         if idx == len(mapcomp) - 1:
             cbarlabel = 'residual/error'
@@ -555,8 +544,8 @@ def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=Fa
         # labels and ticks
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
-        ax.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
-        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        ax.set_xlabel(r'$\Delta \,  \alpha \,[{\rm px}]$')
+        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$', labelpad=-7)
         else: ax.tick_params(axis='both', labelleft=False)
 
         # colorbar
@@ -606,7 +595,7 @@ def plot_all(astrometry, speccoor=[2, 2], mapcomp=['broad', 'core', 'wing'], sav
                                               )
 
     plot_spectrum(astrometry, speccoor=speccoor, gs=inner1, savefig=False)
-    plot_maps(astrometry, gs=inner2, mapcomp=mapcomp, savefig=False)
+    plot_maps(astrometry, speccoor=speccoor, gs=inner2, mapcomp=mapcomp, savefig=False)
 
     plt.show()
 

@@ -12,9 +12,10 @@ import numpy as np
 from scipy.optimize import nnls
 from astropy.io import fits
 from astropy.table import Table
-from astropy.modeling import models, fitting
-from astropy.cosmology import WMAP9 as cosmo
 from astropy import units as u
+from astropy.modeling import models, fitting
+from maoppy.psfmodel import Psfao, psffit
+from maoppy.instrument import muse_nfm
 from tqdm import tqdm
 
 if sys.version_info < (3, 9):
@@ -40,10 +41,15 @@ class Astrometry(Cube):
         path to the output file from the AGN fitting
     """
 
-    def __init__(self, cubefile):
+    def __init__(self, cubefile, psf_model='PSFAO19'):
 
         # load cube
         self.cubefile = cubefile
+
+        # parameters that need to go in the parameters file !!!
+        self.pxsize = 0.025 # [arcsec]
+        self.psf_model = psf_model
+
 
         # load object-specific parameters
         self.load_parameters_par()
@@ -369,8 +375,9 @@ class Astrometry(Cube):
 
             Parameters
             ----------
-            line : `string`
-                component to whose surface brightness profile which the Moffat model will be fitted
+            model : `string`
+                model with which the 2D light distritbution will be fitted.
+                Available options: 'Gaussian', 'Moffat', 'PSFAO19'
 
             Returns
             -------
@@ -383,18 +390,69 @@ class Astrometry(Cube):
         x, y = np.mgrid[:np.shape(image)[0], :np.shape(image)[1]]
 
         # initialize PSF model
-        model_init = models.Moffat2D(amplitude=np.nanmax(image),
-                                     x_0=image.shape[0],
-                                     y_0=image.shape[1],
-                                     gamma=1,
-                                     alpha=1)
-        # Initialize Fitter
-        fit = fitting.LevMarLSQFitter()
 
-        # Fit the data using a 2D Moffat Profile
-        model = fit(model_init,x ,y, image)
+        if self.psf_model != 'PSFAO19':
 
-        return model
+            # fits 'normal' analytic model to core band line form data cube
+            # returns image of PSF, PSF parameters
+            if self.psf_model == 'Moffat':
+                model_init = models.Moffat2D(amplitude=np.nanmax(image),
+                                             x_0=image.shape[0],
+                                             y_0=image.shape[1],
+                                             gamma=1,
+                                             alpha=1)
+            elif self.psf_model == 'Gauss':
+                model_init = models.Gaussian2D(amplitude=np.nanmax(image),
+                                             x_mean=image.shape[0],
+                                             y_mean=image.shape[1],
+                                             x_stddev=image.shape[1],
+                                             y_stddev=image.shape[1],
+                                             theta=0
+                                             )
+                # rename attribute for consistent nomenclature among models
+                model_init.__dict__['x_0'] = model_init.__dict__.pop('x_mean')
+                model_init.__dict__['y_0'] = model_init.__dict__.pop('y_mean')
+
+            # Initialize Fitter
+            fit = fitting.LevMarLSQFitter()
+
+            # Fit the data using a 2D Moffat Profile
+            model = fit(model_init, x, y, image)
+
+            return model
+
+        else:
+            # fits PSFAO19 model to core band line form data cube
+            # returns attribute with PSF parameters and PSF position
+
+            # find wavelength position in cube
+            line = 'Hb'
+            wvl_rf = {'Ha': 6563.8, 'Hb': 4861.4, '8450A': 8450}
+            wavelength = wvl_rf[line]  # wavelength [m]
+
+            # initialize PSF model
+            samp = muse_nfm.samp(wavelength * 1e-10)  # sampling (2.0 for Shannon-Nyquist)
+
+            # fit the image with Psfao
+            guess = [0.081, 1.07, 11.8, 0.06, 0.99, 0.016, 1.62]
+            fixed = [False, False, False, False, False, False, False]
+
+            #with warnings.catch_warnings():
+            #    warnings.simplefilter("ignore")
+            psfao = psffit(image, Psfao, guess, weights=None,
+                           fixed=fixed, npixfit=None,  # fit keywords
+                           system=muse_nfm, samp=samp  # MUSE NFM keywords
+                           )
+
+            # flux_fit, bck_fit = psfao.flux_bck
+            # fitao = flux_fit * psfao.psf + bck_fit
+
+            model = type('', (), {})()  # contains the position attributes
+            model.parameters = psfao.x
+            model.x_0 = psfao.dxdy[0] * u.pix
+            model.y_0 = psfao.dxdy[1] * u.pix
+
+            return model
 
     def fit_PSFloc(self, image, error):
 
@@ -418,40 +476,97 @@ class Astrometry(Cube):
         # setup coordinates
         x, y = np.mgrid[:np.shape(image)[0], :np.shape(image)[1]]
 
-        # Initialize PSF model
-        model_init = models.Moffat2D(amplitude=np.nanmax(image),
-                                     x_0=image.shape[0]/2,
-                                     y_0=image.shape[1]/2,
-                                     gamma=1,
-                                     alpha=1)
+        if self.psf_model != 'PSFAO19':
 
-        # Tie Moffat shape parameters
-        def tie_gamma(model): return self.PSFmodel.gamma
-        model_init.gamma.tied = tie_gamma
-        def tie_alpha(model): return self.PSFmodel.alpha
-        model_init.alpha.tied = tie_alpha
+            if self.psf_model == 'Moffat':
+                model_init = models.Moffat2D(amplitude=np.nanmax(image),
+                                             x_0=image.shape[0],
+                                             y_0=image.shape[1],
+                                             gamma=1,
+                                             alpha=1)
+                # Tie PSF shape parameters
+                def tie_gamma(model):
+                    return self.PSFmodel.gamma
+                model_init.gamma.tied = tie_gamma
+                def tie_alpha(model):
+                    return self.PSFmodel.alpha
+                model_init.alpha.tied = tie_alpha
 
-        # Initialize Fitter
-        fit = fitting.LevMarLSQFitter()
+            elif self.psf_model == 'Gauss':
+                model_init = models.Gaussian2D(amplitude=np.nanmax(image),
+                                               x_mean=image.shape[0]/2,
+                                               y_mean=image.shape[1]/2,
+                                               x_stddev=image.shape[0]/2,
+                                               y_stddev=image.shape[1]/2,
+                                               theta=0
+                                               )
+                # rename attribute for consistent nomenclature among models
+                model_init.__dict__['x_0'] = model_init.__dict__.pop('x_mean')
+                model_init.__dict__['y_0'] = model_init.__dict__.pop('y_mean')
 
-        # Fit the data using a 2D Moffat Profile
-        model = fit(model_init, x, y, image, weights=1/error)
+                # Tie PSF shape parameters
+                def tie_x_stddev(model):
+                    return self.PSFmodel.x_stddev
+                model_init.x_stddev.tied = tie_x_stddev()
+                def tie_y_stddev(model):
+                    return self.PSFmodel.y_stddev
+                model_init.y_stddev.tied = tie_y_stddev
 
-        # Model image
-        img_model = model(y,x)
+            # Initialize Fitter
+            fit = fitting.LevMarLSQFitter()
+
+            # Fit light profile with model
+            model = fit(model_init, x, y, image, weights=1/error)
+
+            # Model image
+            img_model = model(y,x)
+
+        else:
+
+            if (np.nansum(image) == 0) or (np.sum(error <= 0) > 0):
+                image[image <= 0] = 1e-19
+                error[error <= 0] = 1e19
+
+                # find wavelength position in cube
+            line = 'Hb'
+            wvl_rf = {'Ha': 6563.8, 'Hb': 4861.4, '8450A': 8450}
+            wavelength = wvl_rf[line] * (1 + self.cz/3e5)  # wavelength [m]
+
+            # initialize PSF model
+            samp = muse_nfm.samp(wavelength * 1e-10)  # sampling (2.0 for Shannon-Nyquist)
+            fixed = [True,True,True,True,True,True,True]
+
+            psfao = psffit(image, Psfao, self.PSFmodel.parameters, weights=1/error, fixed=fixed,
+                         npixfit=image.shape[0], system=muse_nfm, samp=samp)
+
+            fitao = psfao.flux_bck[0] * psfao.psf + psfao.flux_bck[1]
+            img_model = fitao
+
+            model = type('', (), {})()  # contains the position attributes
+            model.x_0 = psfao.dxdy[0] * u.pix
+            model.y_0 = psfao.dxdy[1] * u.pix
 
         return img_model, model
 
-    def get_loc(self, bootstrapping=True, nmcmc=20):
+    def get_COMPlocs(self, mcmc=True, nmcmc=20):
 
         """
-            Fits the PSF to the 2D light distribution for each of the kinematic components.
+            For each of the kin. component, this function fits the PSF to the 2D light distribution.
+            Computes the position of the centroid relative to the PSF model centroid.
+
+            Parameters
+            ----------
+            mcmc : `boolean`
+                if errors on the location should be computed using bootstrapping
+            nmcmc : `numpy array`
+                number of bootstraps
 
             Returns
             -------
-            models: `astropy models`
-                contains    (1) the image of the model surface brightness distribution and
-                            (2) a tuple with the coordinates of the centroid
+            fluxmodels: `astropy models`
+                 images of the model surface brightness distribution
+            loxs: 'tuple'
+                 coordinates of the centroid relative to the PSF location
         """
 
         # Initialize two attributes for images and centroid coordinates respectively
@@ -464,25 +579,25 @@ class Astrometry(Cube):
             image = getattr(self.fluxmap, component)
             error = getattr(self.errmap, component)
 
-            img_model, model = self.fit_PSFloc(image,error)
+            img_model, model = self.fit_PSFloc(image, error)
 
-            if bootstrapping:
+            if mcmc:
                 loc_mcmc = np.zeros((nmcmc, 2))
                 for i in np.arange(nmcmc):
                     image_mcmc = np.random.normal(image, error)
-                    _, model_i = self.fit_PSFloc(image_mcmc,error)
-                    loc_mcmc[i] = np.array([model_i.x_0.value, model_i.y_0.value])
+                    image_i, model_i = self.fit_PSFloc(image_mcmc, error)
+                    loc_mcmc[i] = np.array([model_i.x_0.value - self.PSFmodel.x_0.value,
+                                            model_i.y_0.value - self.PSFmodel.y_0.value])
+
+                loc = np.nanmedian(loc_mcmc, axis=0)
                 loc_err = np.std(loc_mcmc, axis=0)
 
             else:
+                loc = (np.nan, np.nan)
                 loc_err = (np.nan, np.nan)
 
             setattr(fluxmodels, component, img_model)
-            setattr(locs, component, np.array([model.x_0.value, model.y_0.value,
-                                               loc_err[0], loc_err[1]
-                                               ]
-                                              )
-                    )
+            setattr(locs, component, np.array([loc[0], loc[1], loc_err[0], loc_err[1]]))
 
         return fluxmodels, locs
 
@@ -507,42 +622,6 @@ class Astrometry(Cube):
 
         return px, dpx
 
-    def print_result(self):
-
-        """
-            Print the spectroastrometry result
-        """
-        print('\n')
-        for component in self.spectrum.components:
-            # [px]
-            px, dpx = self.get_offset(component)
-
-            # [arcsec]
-            arcsec = px * 0.025
-            darcsec = dpx * 0.025
-
-            # [pc]
-            d_obj = cosmo.comoving_distance(self.cz / 3e5)
-            pc = (d_obj * arcsec / 206265).to(u.pc).value
-            dpc = (d_obj * darcsec / 206265).to(u.pc).value
-
-            print('%15s  ' % (component) +
-                  'd = (%.2f\u00B1%.2f) px ' % (px, dpx)
-                  + '= (%.2f\u00B1%.2f) mas' % (arcsec * 1e3, darcsec * 1e3)
-                  + '= (%.2f\u00B1%.2f) pc' % (pc, dpc)
-                  )
-
-        # print flux
-
-        print('\n')
-        for component in self.spectrum.components:
-            print('%15s  F = (%2.2f \u00B1% 2.2f) x %15s' % (component,
-                                                             np.nansum(getattr(self.fluxmap, component)),
-                                                             np.nansum(getattr(self.errmap, component)),
-                                                             '1e-16 ergs-1cm-2'
-                                                             )
-                  )
-        print('\n')
 
     def makedir(self,path='.'):
         """
@@ -621,7 +700,7 @@ class Astrometry(Cube):
 
         # find centroid for each of the kinematic components' light distribution
         print(' [5] Find centroids')
-        self.fluxmodel, self.loc = self.get_loc(bootstrapping=True)
+        self.fluxmodel, self.loc = self.get_COMPlocs(mcmc=True)
         
         # print and plot results
         print(' [6] Print & plot result')
@@ -629,4 +708,4 @@ class Astrometry(Cube):
         self.write('.')
 
         # plot the result
-        siena3d.plot.plot_all(self, coor=[0,0])
+        siena3d.plot.plot_all(self, speccoor=[0,0], mapcomp=['broad', 'core', 'wing'])

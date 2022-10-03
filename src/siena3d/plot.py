@@ -34,8 +34,8 @@ ls = {
     'densely dashdotdotted': (0, (3, 1, 1, 1, 1, 1))
 }
 
-def set_rc_params():
 
+def set_rc_params():
     """
         Specifies the runtime configuration settings for matplotlib.
         This function also defines a number of line styles.
@@ -64,28 +64,17 @@ def set_rc_params():
     mpl.rcParams['axes.labelsize'] = 15 * mult
     mpl.rcParams['text.usetex'] = True
 
-def colorbar(mappable, orientation="vertical", ticks=None, label=None, fontsize=14, format=None):
 
-    ax = mappable.axes
-    fig = ax.figure
-    divider = make_axes_locatable(ax)
-    if orientation == 'vertical':
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        cax.tick_params(length=5, width=1, labelsize=.8 * fontsize)
+def colorbar(cax, mappable, orientation="vertical", ticks=None, label=None, fontsize=14, format=None):
 
-        cb = fig.colorbar(mappable, cax=cax, orientation=orientation, format=format)
-        cb.set_label(label, labelpad=5, fontsize=fontsize)
+    fig = cax.figure
+    cax.tick_params(length=5, width=1, labelsize=.8 * fontsize)
 
-    elif orientation == 'horizontal':
-        cax = divider.append_axes("top", size="5%", pad=0.05)
-        cax.xaxis.set_label_position('top')
-        cax.xaxis.set_ticks_position('top')
-        cax.tick_params(bottom=False, top=True, length=5, width=1, pad=-22, labelsize=.8 * fontsize)
-
-        cb = fig.colorbar(mappable, cax=cax, orientation=orientation, format=format)
-        cb.set_label(label, labelpad=-45, fontsize=fontsize)
+    cb = fig.colorbar(mappable, cax=cax, orientation=orientation, format=format)
+    cb.set_label(label, labelpad=5, fontsize=fontsize)
 
     return cb
+
 
 def scalebar(ax, cz, loc=(0.5, 0.5), c='k', distance='50pc'):
     xextent = ax.get_xlim()[1] - ax.get_xlim()[0]
@@ -133,36 +122,35 @@ def scalebar(ax, cz, loc=(0.5, 0.5), c='k', distance='50pc'):
     tloc = (loc[0], xy[1] - 3 * (height / yextent))
     ax.text(*tloc, label, c=c, fontsize=15, ha='center', va='center', transform=ax.transAxes)
 
+
 # Functions for sspectrum class
 
-def plot_AGNspec_model(spectrum,axes=None, savefig=True, path='Output/'):
-
+def plot_AGNspec_model(spectrum, axes=None, savefig=True, path='Output/'):
     set_rc_params()
 
     # get line parameters from compound model
-    Hb_broad_fit = spectrum.bestfit_model[0](spectrum.wvl*u.Angstrom)
-    FeII4924_broad_fit = spectrum.bestfit_model[1](spectrum.wvl*u.Angstrom)
+    Hb_broad_fit = spectrum.bestfit_model[0](spectrum.wvl * u.Angstrom)
+    FeII4924_broad_fit = spectrum.bestfit_model[1](spectrum.wvl * u.Angstrom)
     FeII5018_broad_fit = spectrum.bestfit_model[2](spectrum.wvl * u.Angstrom)
 
+    Hb_medium_fit = spectrum.bestfit_model[3](spectrum.wvl * u.Angstrom)
+    FeII4924_medium_fit = spectrum.bestfit_model[4](spectrum.wvl * u.Angstrom)
+    FeII5018_medium_fit = spectrum.bestfit_model[5](spectrum.wvl * u.Angstrom)
 
-    Hb_medium_fit = spectrum.bestfit_model[3](spectrum.wvl*u.Angstrom)
-    FeII4924_medium_fit = spectrum.bestfit_model[4](spectrum.wvl*u.Angstrom)
-    FeII5018_medium_fit = spectrum.bestfit_model[5](spectrum.wvl*u.Angstrom)
+    Hb_core_fit = spectrum.bestfit_model[6](spectrum.wvl * u.Angstrom)
+    OIII4959_core_fit = spectrum.bestfit_model[7](spectrum.wvl * u.Angstrom)
+    OIII5007_core_fit = spectrum.bestfit_model[8](spectrum.wvl * u.Angstrom)
 
-    Hb_core_fit = spectrum.bestfit_model[6](spectrum.wvl*u.Angstrom)
-    OIII4959_core_fit = spectrum.bestfit_model[7](spectrum.wvl*u.Angstrom)
-    OIII5007_core_fit = spectrum.bestfit_model[8](spectrum.wvl*u.Angstrom)
-
-    Hb_wing_fit = spectrum.bestfit_model[9](spectrum.wvl*u.Angstrom)
-    OIII4959_wing_fit = spectrum.bestfit_model[10](spectrum.wvl*u.Angstrom)
-    OIII5007_wing_fit = spectrum.bestfit_model[11](spectrum.wvl*u.Angstrom)
-
+    Hb_wing_fit = spectrum.bestfit_model[9](spectrum.wvl * u.Angstrom)
+    OIII4959_wing_fit = spectrum.bestfit_model[10](spectrum.wvl * u.Angstrom)
+    OIII5007_wing_fit = spectrum.bestfit_model[11](spectrum.wvl * u.Angstrom)
 
     # Plot
-    fig,axes=plt.subplots(1,1,sharey=True,figsize=(6,4), dpi=200)
+    fig, axes = plt.subplots(1, 1, sharey=True, figsize=(6, 4), dpi=200)
 
-    plt.step(spectrum.wvl+1.25/2, spectrum.AGN_spectrum, c='k', label='AGN')
-    plt.plot(spectrum.wvl, spectrum.eline_model + spectrum.cont*u.Jy, '-', linewidth=1, c='red', label=r'Compound Model')
+    plt.step(spectrum.wvl + 1.25 / 2, spectrum.AGN_spectrum, c='k', label='AGN')
+    plt.plot(spectrum.wvl, spectrum.eline_model + spectrum.cont * u.Jy, '-', linewidth=1, c='red',
+             label=r'Compound Model')
 
     plt.plot(spectrum.wvl, Hb_core_fit, '-.', linewidth=0.5, c='m', label=r'H$\beta$ core')
     plt.plot(spectrum.wvl, Hb_medium_fit, '--', linewidth=.5, c='m', label=r'H$\beta$ medium')
@@ -180,16 +168,17 @@ def plot_AGNspec_model(spectrum,axes=None, savefig=True, path='Output/'):
     plt.plot(spectrum.wvl, FeII5018_broad_fit, '-', linewidth=.5, c='darkblue', label=r'FeII5018 broad')
 
     plt.legend(fontsize=6)
-    #plt.xlim(spectrum.fit_range[0].value, spectrum.fit_range[1].value)
+    # plt.xlim(spectrum.fit_range[0].value, spectrum.fit_range[1].value)
     # Axis labels for Spectrum Plots
-    xlabel=r'rest-frame wavelength $\lambda \, [\rm{\AA}]$'
-    ylabel=r'$F_\lambda \,\, [10^{-16}\, \rm{ergs}^{-1}\rm{cm}^{-2}\rm{A}^{-1}]$'
+    xlabel = r'rest-frame wavelength $\lambda \, [\rm{\AA}]$'
+    ylabel = r'$F_\lambda \,\, [10^{-16}\, \rm{ergs}^{-1}\rm{cm}^{-2}\rm{A}^{-1}]$'
 
     plt.xlabel(xlabel, fontsize=15)
     plt.ylabel(ylabel, fontsize=15)
 
     if savefig:
-        fig.savefig(path + 'AGNspec_model.png', bbox_inches='tight')
+        astrometry.makedir(path)
+        fig.savefig(path + 'Output/AGNspec_model.png', bbox_inches='tight')
 
     return None
 
@@ -197,7 +186,6 @@ def plot_AGNspec_model(spectrum,axes=None, savefig=True, path='Output/'):
 # Functions for spectroastrometry class
 
 def plotly_spectrum(spectrum):
-
     """
     Generates an interactive HTML plot of the best fit model
     """
@@ -205,7 +193,7 @@ def plotly_spectrum(spectrum):
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
 
-    plt.style.use('dark_background')  # For cool tron-style dark plots
+    # plt.style.use('dark_background')  # For cool tron-style dark plots
 
     # Open the best_fit_components file
     hdu = fits.open(os.path.join("Output", "best_model_components.fits"))
@@ -218,7 +206,6 @@ def plotly_spectrum(spectrum):
     # tracenames = []
     # Plot
 
-
     tracename = "Data"
     fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata["data"], mode="lines",
                              line=go.scatter.Line(color="black", width=1), name=tracename, legendrank=1,
@@ -228,8 +215,8 @@ def plotly_spectrum(spectrum):
         go.Scatter(x=tbdata["wvl"], y=tbdata["eline_model"] + tbdata["powerlaw"], mode="lines",
                    line=go.scatter.Line(color="red", width=1),
                    name=tracename, legendrank=2, showlegend=True), row=1, col=1)
-    #tracename = "Noise"
-    #fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata["error"], mode="lines",
+    # tracename = "Noise"
+    # fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata["error"], mode="lines",
     #                         line=go.scatter.Line(color="#FE00CE", width=1), name=tracename, legendrank=3,
     #                         showlegend=True), row=1, col=1)
 
@@ -246,8 +233,9 @@ def plotly_spectrum(spectrum):
             # tracename="narrow line"
             fig.add_trace(go.Scatter(x=tbdata["wvl"], y=tbdata[eline], mode="lines",
                                      line=go.scatter.Line(color=colors[idx], width=1), name=eline.split('_')[0],
-                                     legendgroup=comp, legendgrouptitle_text=comp, legendrank=11+idx),
-                                    row=1, col=1)
+                                     legendgroup=comp, legendgrouptitle_text=comp, legendrank=11 + idx),
+                          row=1, col=1)
+
         # tracenames.append(tracename)
         '''
         if line_list[comp]["line_type"]=="br":
@@ -342,14 +330,14 @@ def plotly_spectrum(spectrum):
     fig.show()
     return None
 
-def plot_spectrum(astrometry, coor=None, gs=None, savefig=False):
 
+def plot_spectrum(astrometry, speccoor=[0,0], gs=None, savefig=False):
     """
         Plots a spectrum from the minicube
 
         Parameters
         ----------
-        coor : `tuple`
+        speccoor : `tuple`
             (x,y) coordinates from where the spectrum in the cube will be extracted
         gs : `matplotlib.gridspec.GridSpec` [optional]
             optional, existing GridSpec to which the plot will be added
@@ -357,32 +345,22 @@ def plot_spectrum(astrometry, coor=None, gs=None, savefig=False):
             saves plot as .png file
     """
 
-    # get base spectra (normalized to 1 erg-scm-2) and
-    # approx. rescale to maximum flux density of the AGN spectrum
-    broad_init = astrometry.basis.broad
-    broad_init = broad_init / np.nanmax(astrometry.basis.broad) * .3 * np.nanmax(astrometry.cube.AGN_spectrum)
-    core_init = astrometry.basis.core_OIII # + astrometry.basis.core_Hb
-    core_init = core_init / np.nanmax(core_init) * .3 * np.max(astrometry.cube.AGN_spectrum)
-    wing_init = astrometry.basis.wing_OIII  # astrometry.basis.wing_Hb+
-    wing_init = wing_init / np.nanmax(wing_init) * .3 * np.max(astrometry.cube.AGN_spectrum)
+    # plt.style.use('default')
 
-    # fit result, scaled to AGN_spectrum
-    broad_fit = astrometry.fluxmap.broad[coor[0], coor[1]] * astrometry.basis.broad
-    core_fit = astrometry.fluxmap.core_OIII[coor[0], coor[1]] * astrometry.basis.core_OIII #\
-                #+ astrometry.fluxmap.core_Hb[coor[0], coor[1]] * astrometry.basis.core_Hb
-    wing_fit = astrometry.fluxmap.wing_OIII[coor[0], coor[1]] * astrometry.basis.wing_OIII
-    # + astrometry.fluxmap.wing_Hb[coor[0],coor[1]]*astrometry.basis.wing_Hb \
-    _, continuum_fit = astrometry.spectrum.subtract_continuum(astrometry.wvl, astrometry.cube.data[:, coor[0], coor[1]])
-    model_fit = continuum_fit + broad_fit + core_fit + wing_fit
+    # get model spectrum by adding the best-fit components
+    _, continuum_fit = astrometry.spectrum.subtract_continuum(astrometry.wvl, astrometry.cube.data[:, speccoor[0], speccoor[1]])
+    bestfit_spectrum = continuum_fit
+    for idx, comp in enumerate(astrometry.spectrum.components):
+        spec_fit = getattr(astrometry.fluxmap, comp)[speccoor[0], speccoor[1]] * getattr(astrometry.basis, comp)
+        bestfit_spectrum += spec_fit
 
-    spec = astrometry.cube.data[:, coor[0], coor[1]]
-    err = astrometry.cube.error[:, coor[0], coor[1]]
-    res = spec - model_fit
+    spec = astrometry.cube.data[:, speccoor[0], speccoor[1]]
+    err = astrometry.cube.error[:, speccoor[0], speccoor[1]]
+    res = spec - bestfit_spectrum
 
     #         *** plotting***
 
-    # init model
-
+    colors = ["#00B5F7", "#22FFA7", "#FC0080", "#DA16FF", "rgb(153,201,59)"]
     xlabel = r'rest-frame wavelength $\lambda \, [\rm{\AA}]$'
     ylabel = r'$f_\lambda \,\, [10^{-16} \rm{erg/s/cm}^{2}/\rm{A}]$'
     rwindow = 5
@@ -395,26 +373,23 @@ def plot_spectrum(astrometry, coor=None, gs=None, savefig=False):
     gs1 = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1], height_ratios=[rwindow, 1], hspace=0)
 
     ax0 = plt.subplot(gs0[0])
-    ax0.step(astrometry.wvl + .5 * 1.25, astrometry.cube.AGN_spectrum,
-             linewidth=1, color='k', label='AGN')
-    ax0.plot(astrometry.wvl, broad_init, color='cornflowerblue',
-             linestyle=ls['densely dashed'], linewidth=.8, label='broad')
-    ax0.plot(astrometry.wvl, core_init, color='lightcoral',
-             linestyle=ls['densely dashdotted'], linewidth=.8, label='core')
-    ax0.plot(astrometry.wvl, wing_init, color='limegreen',
-             linestyle=ls['densely dashdotdotted'], linewidth=.8, label='wing')
-    ax0.legend(fontsize=10)
+    ax0.step(astrometry.wvl + .5 * 1.25, astrometry.cube.AGN_spectrum, linewidth=1, color='k', label='AGN')
+    for idx, comp in enumerate(astrometry.spectrum.components):
+        spec_init = getattr(astrometry.basis, comp)
+        spec_init_norm = spec_init / np.nanmax(spec_init)
+        ax0.step(astrometry.wvl + .5 * 1.25, spec_init_norm, linewidth=1, color=colors[idx], label=comp)
+    ax0.legend(fontsize=8)
     ax0.set_xlim(min(astrometry.wvl), max(astrometry.wvl))
     ax0.set_ylim(1e-4 * np.nanmax(astrometry.cube.AGN_spectrum))
 
     # fit result
     ax1 = plt.subplot(gs1[0])
     ax1.step(astrometry.wvl + .5 * 1.25, spec, color='k', linewidth=1, label='AGN')
-    ax1.fill_between(astrometry.wvl, broad_fit, facecolor='cornflowerblue', label='broad')
-    ax1.fill_between(astrometry.wvl, core_fit, facecolor='lightcoral', label='core')
-    ax1.fill_between(astrometry.wvl, wing_fit, facecolor='limegreen', label='wing')
-    ax1.plot(astrometry.wvl, model_fit, linewidth=1, c='firebrick', label='model')
-    ax1.legend(fontsize=10)
+    for idx, comp in enumerate(astrometry.spectrum.components):
+        spec_fit = getattr(astrometry.fluxmap, comp)[speccoor[0], speccoor[1]] * getattr(astrometry.basis, comp)
+        ax1.fill_between(astrometry.wvl + .5 * 1.25, spec_fit, linewidth=1, color=colors[idx], label=comp)
+    ax1.plot(astrometry.wvl, bestfit_spectrum, linewidth=1, c='firebrick', label='model')
+    ax1.legend(fontsize=8)
     ax1.set_xlim(min(astrometry.wvl), max(astrometry.wvl))
     ax1.set_ylim(1e-4 * np.nanmax(spec))
 
@@ -449,10 +424,10 @@ def plot_spectrum(astrometry, coor=None, gs=None, savefig=False):
     ax2.yaxis.set_minor_locator(AutoMinorLocator())
 
     if savefig:
-        plt.savefig('Figures/spectroastrometry_spec.png', bbox_inches='tight', dpi=300)
+        plt.savefig('Output/Spectroastrometry_spec.png', bbox_inches='tight', dpi=300)
 
-def plot_maps(astrometry, gs=None, savefig=False):
 
+def plot_maps(astrometry, gs=None, mapcomp=['broad', 'core', 'wing'], savefig=False):
     """
         Plots maps of the kinematic components
 
@@ -469,192 +444,171 @@ def plot_maps(astrometry, gs=None, savefig=False):
                        ]
                       )
 
-    extent *= 0.025 * 1e3  # implement cellsize in cube!
+    extent *= astrometry.pxsize * 1e3  # implement cellsize in cube!
 
     if gs == None:
-        fig = plt.figure(figsize=(9, 6), dpi=150)
-        gs = gridspec.GridSpec(3, 3, wspace=.07, hspace=.06, width_ratios=[1, 1, 1.1])
+        fig = plt.figure(figsize=(9, 2 + 1.5 * len(astrometry.fluxmap.__dict__)), dpi=150)
+        gs = gridspec.GridSpec(3, len(mapcomp)+1, wspace=.07, hspace=.06)
+        print('paperlapapp')
 
-    # Flux maps
-
-    component = 'broad'
-    fluxmap = getattr(astrometry.fluxmap, component)
-    ax00 = plt.subplot(gs[0, 0])
+    # Top row: flux maps
     cmap = mpl.cm.get_cmap('gist_earth_r')
-    im = ax00.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
-                     norm=LogNorm(vmin=2e-2, vmax=1))
-    scalebar(ax00, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+    for idx, comp in enumerate(mapcomp):
+        fluxmap = getattr(astrometry.fluxmap, comp)
+        ax = plt.subplot(gs[0, idx])
+        im = ax.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        scalebar(ax, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
 
-    component = 'core'
-    fluxmap = getattr(astrometry.fluxmap, component)
-    ax01 = plt.subplot(gs[0, 1])
-    cmap = mpl.cm.get_cmap('gist_earth_r')
-    im = ax01.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
-                     norm=LogNorm(vmin=2e-2, vmax=1))
-    scalebar(ax01, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+        # annotations
+        ax.annotate(comp, xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
+        ax.annotate('(' + chr(0 * len(mapcomp) + idx+97) + ')',
+                    ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        if idx == 0: ax.annotate(r'Data', xy=(0.9, .7), fontsize=14, ha='right', xycoords='axes fraction')
 
-    component = 'wing'
-    fluxmap = getattr(astrometry.fluxmap, component)
-    ax02 = plt.subplot(gs[0, 2])
-    cmap = mpl.cm.get_cmap('gist_earth_r')
-    im = ax02.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
-                     norm=LogNorm(vmin=2e-2, vmax=1))
-    # scalebar(ax02, astrometry.cz, c='k', loc=(.5,.22), distance='50pc')
-    cbarlabel = r'$ \Sigma$'
-    colorbar(im, label=cbarlabel)
+        # axes labels and ticks
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(axis='both', labelbottom=False)
+        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        else: ax.tick_params(axis='both', labelleft=False)
 
-    # PSF maps
+        # colorbar
+        if idx == len(mapcomp)-1:
+            ax = plt.subplot(gs[0, idx+1])
+            cbarlabel = r'$ \Sigma$'
+            colorbar(ax, im, label=cbarlabel)
 
-    component = 'broad'
-    fluxmap = getattr(astrometry.fluxmodel, component)
-    ax10 = plt.subplot(gs[1, 0])
-    cmap = mpl.cm.get_cmap('gist_earth_r')
-    im = ax10.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
-                     norm=LogNorm(vmin=2e-2, vmax=1))
-    # scalebar(ax10, astrometry.cz, c='k', loc=(.5,.18), distance='50pc')
 
-    component = 'core'
-    fluxmap = getattr(astrometry.fluxmodel, component)
-    ax11 = plt.subplot(gs[1, 1])
-    cmap = mpl.cm.get_cmap('gist_earth_r')
-    im = ax11.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
-                     norm=LogNorm(vmin=2e-2, vmax=1))
-    # scalebar(ax10, astrometry.cz, c='k', loc=(.5,.18), distance='50pc')
 
-    component = 'wing'
-    fluxmap = getattr(astrometry.fluxmodel, component)
-    ax12 = plt.subplot(gs[1, 2])
-    cmap = mpl.cm.get_cmap('gist_earth_r')
-    im = ax12.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
-                     norm=LogNorm(vmin=2e-2, vmax=1))
-    # scalebar(ax12, astrometry.cz, c='k', loc=(.5,.18), distance='50pc')
-    cbarlabel = r'$ \Sigma$'
-    colorbar(im, label=cbarlabel)
+    # Row 2: Model light distribution
+    for idx, comp in enumerate(mapcomp):
+        fluxmap = getattr(astrometry.fluxmodel, comp)
+        ax = plt.subplot(gs[1, idx])
+        im = ax.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', extent=extent, cmap=cmap,
+                       norm=LogNorm(vmin=2e-2, vmax=1))
+        scalebar(ax, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+        if idx == len(mapcomp) - 1:
+            cbarlabel = r'$ \Sigma$'
+            # colorbar(im, label=cbarlabel)
 
-    # Residual maps
+        # annotations
+        if idx == 0: ax.annotate('Model', ha='right', xy=(0.9, 0.85), fontsize=14, xycoords='axes fraction')
+        ax.annotate('(' + chr(1 * len(mapcomp) + idx + 97) + ')',
+                    ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
 
-    component = 'broad'
-    residuals = (getattr(astrometry.fluxmap, component)
-                 - getattr(astrometry.fluxmodel, component)
-                 ) / getattr(astrometry.fluxmap, component)
-    ax20 = plt.subplot(gs[2, 0])
+        # centroid location
+        # add the location of the component, which is measured relative to the PSF position,
+        # to the PSF's offset from zero (i.e. half the image size)
+        # flipped sign for y-axis due to origin=lower argument
+
+        ax.scatter((astrometry.loc.broad[0] + (astrometry.PSFmodel.x_0.value - astrometry.cube.ncrop / 2)) \
+                   * astrometry.pxsize * 1000,
+                   (astrometry.loc.broad[1] + (astrometry.PSFmodel.y_0.value - astrometry.cube.ncrop / 2)) \
+                   * astrometry.pxsize * 1000,
+                   marker='x', c='firebrick', s=40, label='AGN')
+        if idx > 0:
+            ax.scatter((getattr(astrometry.loc, comp)[0] + (astrometry.PSFmodel.x_0.value - astrometry.cube.ncrop / 2)) \
+                       * astrometry.pxsize * 1000,
+                       (getattr(astrometry.loc, comp)[1] + (astrometry.PSFmodel.y_0.value - astrometry.cube.ncrop / 2)) \
+                       * astrometry.pxsize * 1000,
+                       marker='x', c='gold', s=40, label='centroid')
+
+        # add legend
+        if idx == len(mapcomp) - 1:
+            legend = ax.legend(fontsize=8, bbox_to_anchor=(0.98, 0.98), loc='upper right', framealpha=.5)
+            legend.get_frame().set_alpha(.4)
+
+        # axes labels and ticks
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.tick_params(axis='both', labelbottom=False)
+        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        else: ax.tick_params(axis='both', labelleft=False)
+
+        # colorbar
+        if idx == len(mapcomp) - 1:
+            ax = plt.subplot(gs[1, idx + 1])
+            cbarlabel = r'$ \Sigma$'
+            colorbar(ax, im, label=cbarlabel)
+
+    # Row 3: Residual maps
     cmap = mpl.cm.get_cmap('seismic')
-    im = ax20.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
-    scalebar(ax20, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+    for idx, comp in enumerate(mapcomp):
 
-    component = 'core'
-    residuals = (getattr(astrometry.fluxmap, component)
-                 - getattr(astrometry.fluxmodel, component)
-                 ) / getattr(astrometry.fluxmap, component)
-    ax21 = plt.subplot(gs[2, 1])
-    cmap = mpl.cm.get_cmap('seismic')
-    im = ax21.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
-    scalebar(ax21, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
+        residuals = (getattr(astrometry.fluxmap, comp) - getattr(astrometry.fluxmodel, comp)
+                     ) / getattr(astrometry.fluxmap, comp)
 
-    component = 'wing'
-    residuals = (getattr(astrometry.fluxmap, component)
-                 - getattr(astrometry.fluxmodel, component)
-                 ) / getattr(astrometry.fluxmap, component)
-    ax22 = plt.subplot(gs[2, 2])
-    cmap = mpl.cm.get_cmap('seismic')
-    im = ax22.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
-    scalebar(ax22, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
-    cbarlabel = 'residual/error'
-    colorbar(im, label=cbarlabel)
+        ax = plt.subplot(gs[2, idx])
+        im = ax.imshow(residuals, origin='lower', extent=extent, cmap=cmap, vmin=-1, vmax=1)
+        scalebar(ax, astrometry.cz, c='k', loc=(.5, .22), distance='50pc')
 
-    # draw borad centroids
-    ax00.scatter(*astrometry.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40)
-    #ax01.scatter(*astrometry.loc.core_Hb[:2] * 0.025e3, marker='x', c='gold', s=40)
-    ax01.scatter(*astrometry.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40)
-    ax02.scatter(*astrometry.loc.wing_OIII[:2] * 0.025e3, marker='x', c='gold', s=40, label='centroid')
-    ax02.scatter(*astrometry.loc.broad[:2] * 0.025e3, marker='x', c='firebrick', s=40, label='AGN')
-    legend = ax02.legend(fontsize=8, bbox_to_anchor=(0.95, 0.3), framealpha=.5)
-    legend.get_frame().set_alpha(.4)
+        if idx == len(mapcomp) - 1:
+            cbarlabel = 'residual/error'
+            #colorbar(im, label=cbarlabel)
 
-    # annotations
-    ax00.annotate('(a)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        # annotations
+        if idx == 0: ax.annotate('Residual', ha='right', xy=(0.9, 0.85), fontsize=14, xycoords='axes fraction')
+        ax.annotate('(' + chr(2 * len(mapcomp) + idx + 97) +')',
+                    ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
 
-    ax00.annotate(r'H$\beta$ broad', xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
-    ax00.annotate(r'Data', xy=(0.9, .7), fontsize=14, ha='right', xycoords='axes fraction')
-    ax01.annotate('(b)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
-    ax01.annotate(r'[O$\:$III] core', xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
-    ax02.annotate('(c)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
-    ax02.annotate(r'[O$\:$III] wing', xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
-    ax10.annotate('(d)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
-    ax10.annotate('Model', ha='right', xy=(0.9, 0.85), fontsize=14, xycoords='axes fraction')
-    ax11.annotate('(e)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
-    ax12.annotate('(f)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
-    ax20.annotate('(g)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
-    ax20.annotate('Residual', ha='right', xy=(0.9, 0.85), fontsize=14, xycoords='axes fraction')
-    ax21.annotate('(h)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
-    ax22.annotate('(i)', ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
+        # labels and ticks
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
+        ax.yaxis.set_minor_locator(AutoMinorLocator())
+        ax.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
+        if idx == 0: ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
+        else: ax.tick_params(axis='both', labelleft=False)
 
-    # switch on minor ticks
-    ax00.xaxis.set_minor_locator(AutoMinorLocator())
-    ax00.yaxis.set_minor_locator(AutoMinorLocator())
-    ax01.xaxis.set_minor_locator(AutoMinorLocator())
-    ax01.yaxis.set_minor_locator(AutoMinorLocator())
-    ax02.xaxis.set_minor_locator(AutoMinorLocator())
-    ax02.yaxis.set_minor_locator(AutoMinorLocator())
-    ax10.xaxis.set_minor_locator(AutoMinorLocator())
-    ax10.yaxis.set_minor_locator(AutoMinorLocator())
-    ax11.xaxis.set_minor_locator(AutoMinorLocator())
-    ax11.yaxis.set_minor_locator(AutoMinorLocator())
-    ax12.xaxis.set_minor_locator(AutoMinorLocator())
-    ax12.yaxis.set_minor_locator(AutoMinorLocator())
-    ax20.xaxis.set_minor_locator(AutoMinorLocator())
-    ax20.yaxis.set_minor_locator(AutoMinorLocator())
-    ax21.xaxis.set_minor_locator(AutoMinorLocator())
-    ax21.yaxis.set_minor_locator(AutoMinorLocator())
-    ax22.xaxis.set_minor_locator(AutoMinorLocator())
-    ax22.yaxis.set_minor_locator(AutoMinorLocator())
-
-    ax01.tick_params(axis='both', labelleft=False)
-    ax02.tick_params(axis='both', labelleft=False)
-    ax11.tick_params(axis='both', labelleft=False)
-    ax12.tick_params(axis='both', labelleft=False)
-    ax21.tick_params(axis='both', labelleft=False)
-    ax22.tick_params(axis='both', labelleft=False)
-    ax00.tick_params(axis='both', labelbottom=False)
-    ax01.tick_params(axis='both', labelbottom=False)
-    ax02.tick_params(axis='both', labelbottom=False)
-    ax10.tick_params(axis='both', labelbottom=False)
-    ax11.tick_params(axis='both', labelbottom=False)
-    ax12.tick_params(axis='both', labelbottom=False)
-
-    ax00.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
-    ax10.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
-    ax20.set_ylabel(r'$\Delta \,  \delta \,[{\rm mas}]$', labelpad=-7)
-    ax20.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
-    ax21.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
-    ax22.set_xlabel(r'$\Delta \,  \alpha \,[{\rm mas}]$')
+        # colorbar
+        if idx == len(mapcomp) - 1:
+            ax = plt.subplot(gs[2, idx + 1])
+            cbarlabel = r'$ \Sigma$'
+            colorbar(ax, im, label=cbarlabel)
 
     if savefig:
         astrometry.makedir(path)
-        plt.savefig(path+'spectroastrometry_maps.png', bbox_inches='tight')
+        plt.savefig(path + 'Output/Spectroastrometry_maps.png', bbox_inches='tight')
 
-def plot_all(astrometry, coor, savefig=True, path='.'):
 
+def plot_all(astrometry, speccoor=[2, 2], mapcomp=['broad', 'core', 'wing'], savefig=True, path='.'):
     """
         Plots both spectra before/after fitting together with the
         surface brightness maps of the kinematic components
 
         Parameters
         ----------
-        coor : `tuple`
+        speccoor : `tuple`
             (x,y) coordinates from where the spectrum in the cube will be extracted
+
+        mapcomp : `list`
+            Kinematic components for which maps will be plotted. Must be a subset of the different
+            components in the elines.par file.
+
+        savefig : `boolean`
+            writes figure if true.
+
+        path : `boolean`
+            path relative to working dir where the 'Ouput" directory will be created.
     """
 
-    fig = plt.figure(figsize=(15, 7), dpi=150)
-    outer = gridspec.GridSpec(1, 2, wspace=0.2, width_ratios=[2.5, 3])
+    set_rc_params()
+
+    fig = plt.figure(figsize=(18, 7), dpi=150)
+    outer = gridspec.GridSpec(1, 2, wspace=0.2, width_ratios=[5, len(mapcomp)*2+.2])
 
     inner1 = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer[0],
                                               height_ratios=[1, 1.2], hspace=0)
-    inner2 = gridspec.GridSpecFromSubplotSpec(3, 3, subplot_spec=outer[1],
-                                              wspace=.07, hspace=.06, width_ratios=[1, 1, 1.1])
 
-    plot_spectrum(astrometry, coor=[2, 2], gs=inner1, savefig=False)
-    plot_maps(astrometry, gs=inner2, savefig=False)
+    inner2 = gridspec.GridSpecFromSubplotSpec(3, len(mapcomp)+1,
+                                              subplot_spec=outer[1],
+                                              wspace=.07, hspace=.06,
+                                              width_ratios=np.append(np.ones(len(mapcomp)), .07)
+                                              )
+
+    plot_spectrum(astrometry, speccoor=speccoor, gs=inner1, savefig=False)
+    plot_maps(astrometry, gs=inner2, mapcomp=mapcomp, savefig=False)
+
+    plt.show()
 
     if savefig:
         astrometry.makedir(path)
@@ -662,8 +616,8 @@ def plot_all(astrometry, coor, savefig=True, path='.'):
 
     return fig
 
-def print_result(astrometry):
 
+def print_result(astrometry):
     """
         Print the spectroastrometry result
     """
@@ -674,8 +628,8 @@ def print_result(astrometry):
         px, dpx = astrometry.get_offset(component)
 
         # [arcsec]
-        arcsec = px * 0.025
-        darcsec = dpx * 0.025
+        arcsec = px * astrometry.pxsize
+        darcsec = dpx * astrometry.pxsize
 
         # [pc]
         d_obj = cosmo.comoving_distance(astrometry.cz / 3e5)

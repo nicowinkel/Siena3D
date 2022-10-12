@@ -8,15 +8,15 @@
 # '''
 #
 # eline                 component       tied            amp_init    offset_init  stddev_init
-Hb_broad                broad           Hb_broad        .1          0            22
-FeII4924_broad          broad           Hb_broad        .05         0            22
-FeII5018_broad          broad           Hb_broad        .05         0            22
-Hb_medium               medium          Hb_medium       .1          0            5
-FeII4924_medium         medium          Hb_medium       .1          0            5
-FeII5018_medium         medium          Hb_medium       .1          0            5
-Hb_core                 core            Hb_core         .05         0            2
-OIII4959_core           core            Hb_core         .2          0            2
-OIII5007_core           core            Hb_core         .2          0            2
-Hb_wing                 wing            Hb_wing         .2          -5           3
-OIII4959_wing           wing            Hb_wing         .1          -5           3
-OIII5007_wing           wing            Hb_wing         .1          -5           3
+Hb_broad                broad           Hb_broad        .15          0            22
+FeII4924_broad          broad           Hb_broad        .05          0            22
+FeII5018_broad          broad           Hb_broad        .05          0            22
+Hb_medium               medium          Hb_medium       .3           0            5
+FeII4924_medium         medium          Hb_medium       .1           0            5
+FeII5018_medium         medium          Hb_medium       .1           0            5
+Hb_core                 core            Hb_core         .2          -2           2
+OIII4959_core           core            Hb_core         .2          -2           2
+OIII5007_core           core            Hb_core         .2          -2           2
+Hb_wing                 wing            Hb_wing         .1          -8           3
+OIII4959_wing           wing            Hb_wing         .2          -8           3
+OIII5007_wing           wing            Hb_wing         .2          -8           3

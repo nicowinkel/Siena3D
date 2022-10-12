@@ -1,6 +1,6 @@
 from siena3d.astrometry import Astrometry
 
-datacube = 'Mrk1044_example.fits'   # input file
+datacube = 'Input/Mrk1044.fits'   # input file
 
 astrometry = Astrometry(datacube)
 astrometry.run()

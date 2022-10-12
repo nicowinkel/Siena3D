@@ -1,6 +1,8 @@
-#  this file contains the parameters for the emission line fit
-
-cz                4913.4              # systemic velocity of the source
-instr_fwhm        2.54                # instrumentals resolution [Angstroem]
-wvl_start         4750                # lower wavelength limit for emission line fitting
-wvl_end           5100                # upper wavelength limit for emission line fitting
+cz                4913.4                      # systemic velocity of the source
+instr_fwhm        2.54                        # instrumentals resolution [Angstroem]
+wvl_start         4750                        # lower wavelength limit for emission line fitting
+wvl_end           5100                        # upper wavelength limit for emission line fitting
+sampling          0.025                       # spatial sampling of the input data cube [arcsec/px]
+coor              2,2                         # coordinates for which spectrum in final plot will be shown
+psf_model         PSFAO19                     # model for the PSF: Gauss, Moffat, PSFAO19
+plotmaps          broad,core,wing             # kinematic components that shall be included in the final plot

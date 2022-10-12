@@ -7,16 +7,15 @@ from astropy.io import fits
 class Header(object):
     def __init__(self, header=None, origin=None):
         """
-            Creates an Header object
+        Creates an Header object
 
-            Parameters
-            --------------
-            header : fits.header object, optional
-                    Fits header as header
-            origin : string, optional
-                    Name of the Fits file as the origin for the header,
-                    can be the full path of the file
-
+        Parameters
+        --------------
+        header : fits.header object, optional
+                Fits header as header
+        origin : string, optional
+                Name of the Fits file as the origin for the header,
+                can be the full path of the file
         """
         if header is not None:
             # Assign private variable and convert header to card list
@@ -37,31 +36,31 @@ class Header(object):
 
     def loadFitsHeader(self, filename,  extension=0):
         """
-            Loads the header information from a Fits file
+        Loads the header information from a Fits file
 
-            Parameters
-            ---------------
-            filename : string
-                        Filename of the Fits file from which the header should be loaded.
-                        The full path to the file can be given.
-            extension : integer, optional
-                        Extension of the Fits file from the header shall be read
+        Parameters
+        ---------------
+        filename : string
+                    Filename of the Fits file from which the header should be loaded.
+                    The full path to the file can be given.
+        extension : integer, optional
+                    Extension of the Fits file from the header shall be read
         """
         self.header = fits.getheader(filename, ext=extension)
         self.origin = filename
 
     def writeFitsHeader(self, filename=None, extension=0):
         """
-            Writes the header to an existing Fits file
+        Writes the header to an existing Fits file
 
-            Parameters:
-            ---------------
-            filename : string, optional
-                        Filename of the Fits file to which the header is written.
-                        The full path to the file can be given.
-                        If filename is none, the value of _origin ise used.
-            extenstion : integer, optional
-                        Extension of the Fits file to which the header is written.
+        Parameters:
+        ---------------
+        filename : string, optional
+                    Filename of the Fits file to which the header is written.
+                    The full path to the file can be given.
+                    If filename is none, the value of _origin ise used.
+        extenstion : integer, optional
+                    Extension of the Fits file to which the header is written.
         """
 
         if filename is None:
@@ -75,40 +74,40 @@ class Header(object):
 
     def getHdrValue(self, keyword):
         """
-            Returns the value of a certain keyword in the header
+        Returns the value of a certain keyword in the header
 
-            Parameters:
-            ---------------
-            keyword : string
-                        valid keyword in the header
+        Parameters:
+        ---------------
+        keyword : string
+                    valid keyword in the header
 
-            Returns:
-            ---------------
-            out : string, integer or float
-                        stored value in the header for the given keyword
+        Returns:
+        ---------------
+        out : string, integer or float
+                    stored value in the header for the given keyword
         """
         return self.header[keyword]
 
     def getHdrKeys(self):
         """
-            Returns all valid keywords of the Header
+        Returns all valid keywords of the Header
 
-            Returns:
-            ---------------
-            out : list
-                        list of strings representing the keywords in the header
+        Returns:
+        ---------------
+        out : list
+                    list of strings representing the keywords in the header
         """
         return self.header.keys()
 
 
     def setHdrValue(self,  keyword,  value,  comment=None):
         """
-            Sets the value of a certain keyword in the header
+        Sets the value of a certain keyword in the header
 
-            Parameters:
-            ---------------
-            keyword : string
-                        valid keyword in the header
+        Parameters:
+        ---------------
+        keyword : string
+                    valid keyword in the header
         """
         if self.header is None:
             self.header = fits.Header()

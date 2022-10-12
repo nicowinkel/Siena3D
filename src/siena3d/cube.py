@@ -52,12 +52,11 @@ class Cube(Data):
         self.ncrop = ncrop
 
     def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, writecube=True, path='Output/'):
-
         """
-            Truncates the initial data cube in both wavelength
-            and spatial dimension.
-            The resulting minicube has a shape of [something,ncrop,ncrop]
-            and has the brightest pixel in its center
+        Truncates the initial data cube in both wavelength
+        and spatial dimension.
+        The resulting minicube has a shape of [something,ncrop,ncrop]
+        and has the brightest pixel in its center
         """
 
         # crop wvl axis in rest frame
@@ -86,38 +85,37 @@ class Cube(Data):
     def loadFitsCube(self, filename, cz=None, extension_hdr=None, extension_data=None,
                      extension_mask=None, extension_error=None,
                      extension_errorweight=None, extensionProjects_hdr=0):
-
         """
-            Load data from a FITS image into a Data object
+        Load data from a FITS image into a Data object
 
-            Parameters
-            --------------
-            filename : string
-                Name or Path of the FITS image from which the data shall be loaded
+        Parameters
+        --------------
+        filename : string
+            Name or Path of the FITS image from which the data shall be loaded
 
 
-            extension_hdr : int or string, optional with default: None
-                Number or name of the FITS extension containing the fits header to be used for the cube information like
-                wavelength or WCS system.
+        extension_hdr : int or string, optional with default: None
+            Number or name of the FITS extension containing the fits header to be used for the cube information like
+            wavelength or WCS system.
 
-            extension_data : int or string, optional with default: None
-                Number or name of the FITS extension containing the data
+        extension_data : int or string, optional with default: None
+            Number or name of the FITS extension containing the data
 
-            extension_error : int or string, optional with default: None
-                Number or string of the FITS extension containing the errors for the values
+        extension_error : int or string, optional with default: None
+            Number or string of the FITS extension containing the errors for the values
 
-            extension_mask : int or string, optional with default: None
-                Number or name of the FITS extension containing the masked pixels
+        extension_mask : int or string, optional with default: None
+            Number or name of the FITS extension containing the masked pixels
         """
 
         hdu = fits.open(filename)
         self.header = hdu[extension_hdr].header
-        self.data = hdu[extension_data].data/1e4
+        self.data = hdu[extension_data].data
 
         if hdu[extension_error].header['EXTNAME'].split()[0] == 'STAT':
-                self.error = np.sqrt(hdu[extension_error].data)/1e4
+                self.error = np.sqrt(hdu[extension_error].data)
         elif hdu[extension_error].header['EXTNAME'].split()[0] == 'ERROR':
-                self.error = hdu[extension_error].data/1e4
+                self.error = hdu[extension_error].data
         else:
             print('First extension is neither ERROR nor STAT')
 
@@ -136,26 +134,24 @@ class Cube(Data):
         hdu.close()
 
     def get_AGN_spectrum(self, writespec=True, path='Ouput/'):
-
         """
-            Reads table that contains parameters of the QSO spectrum model
+        Reads table that contains parameters of the QSO spectrum model
 
-            Parameters
-            ----------
-            writespec : `boolean`
-                if TRUE: writes output file
-            path : `str`
-                path where output file will be written to
+        Parameters
+        ----------
+        writespec : `boolean`
+            if TRUE: writes output file
+        path : `str`
+            path where output file will be written to
 
-            Returns
-            -------
-            coor: `tuple`
-                (x,y) coordinates of AGN in data cube
-            spectrum: `numpy array`
-                1D spectrum extracted from the AGN spaxel
-            error: `numpy array`
-                1D error spectrum extracted from the AGN spaxel
-
+        Returns
+        -------
+        coor: `tuple`
+            (x,y) coordinates of AGN in data cube
+        spectrum: `numpy array`
+            1D spectrum extracted from the AGN spaxel
+        error: `numpy array`
+            1D error spectrum extracted from the AGN spaxel
         """
 
         white_image = np.nansum(self.data, axis=0)

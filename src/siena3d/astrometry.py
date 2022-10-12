@@ -611,8 +611,6 @@ class Astrometry(Cube):
             output directory
         """
 
-        self.makedir(path)
-
         for component in self.spectrum.components:
 
             fluxmap = getattr(self.fluxmap, component)
@@ -639,9 +637,9 @@ class Astrometry(Cube):
 
     def run(self):
 
+        self.makedir('.')
 
         # retrieve minicube, AGN spectrum and fit
-
         self.par = siena3d.parameters.load_parList(self.parfile)
 
         print(' [1] Get AGN spectrum')

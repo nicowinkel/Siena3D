@@ -14,6 +14,7 @@ class Parameter(object):
     description : string, optional
         The type of object that is stored.
     """
+
     def __init__(self, value, description=''):
         self.__value = value
         self.__description = description
@@ -76,20 +77,22 @@ class ParameterList(UserDict):
         self[Name] = parameter
 
 
-def load_parList(file):
-    """
-    Read in the parameters file
+def load_parlist(filename):
+    """Read in the parameters file.
 
     Parameters
     ----------
-    path : `string`
-        relative path to parameters.par file
+    filename : `string`
+        input file name
     """
     attributes = type('', (), {})()
 
-    parList = ParameterList(file)
-    for par in parList:
-        string = parList[par].getValue()
+    parlist = ParameterList(filename)
+    
+    for par in parlist:
+        string = parlist[par].getValue()
+
+        # check if input value consists of multiple values
         if ',' in string:
             value = string.split(',')
             for idx, _ in enumerate(value):
@@ -102,16 +105,28 @@ def load_parList(file):
                 except:
                     None
 
+        # check if input is numeric
         elif string.replace('.','',1).isnumeric():
-            value = float(string)
+            vtmp = float(string)
+            try:
+                # check if integer
+                if (int(vtmp) == vtmp):
+                    value = int(vtmp)
+                else:
+                    value = vtmp
+            except:
+                None
+
+        # input is neither tuple, not int or float
         else:
             try:
                 value = string
             except:
-                msg = 'Error while parsing the file {}. '.format(file)
+                msg = 'Error while parsing the file {}. '.format(filename)
                 msg += 'Please follow the formatting of the example files or ' \
                        'consult the user manual for instructions on the formatting.'
                 raise ValueError(msg)
+            
         setattr(attributes, par, value)
 
     return attributes

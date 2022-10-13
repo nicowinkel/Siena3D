@@ -10,7 +10,6 @@ from astropy.io import fits
 
 
 class Cube(Data):
-
     """
     A class representing 3D spectra.
 
@@ -46,17 +45,25 @@ class Cube(Data):
         files.
     """
 
-    def __init__(self, header=None, cz=None, data=None, error=None, mask=None, ncrop=14):
-
+    def __init__(self, header=None, cz=None, data=None, error=None, mask=None):
         Header.__init__(self, header=header)
-        self.ncrop = ncrop
 
-    def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, writecube=True, path='Output/'):
-        """
-        Truncates the initial data cube in both wavelength
-        and spatial dimension.
-        The resulting minicube has a shape of [something,ncrop,ncrop]
-        and has the brightest pixel in its center
+    def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, write=True, path=''):
+        """Truncates the input data cube in both wavelength and spatial dimension.
+        The resulting minicube has a shape of [something,ncrop,ncrop] and has the brightest pixel in its center.
+
+        Parameters
+        --------------
+        wvl_min : `float`, optional with default: 4750
+            start wavelength of the minicube.
+        wvl_max : `float`, optional with default: 5100
+            end wavelength of the minicube.
+        ncrop : 'int', optional with default: 14
+            spatial size [px] of the window to which the input cube will be cropped.
+        write : `boolean`, optional with default: True
+            whether minicube will be saved as fits file.
+        path : `str`, optional with default: ''
+            path to which output file will be saved
         """
 
         # crop wvl axis in rest frame
@@ -71,40 +78,35 @@ class Cube(Data):
 
         # crop spatial axis
         s = ncrop//2
-        self.data = self.data[:,(ycen-s):(ycen+s),(xcen-s):(xcen+s)]
-        self.error = self.error[:,ycen-s:ycen+s,xcen-s:xcen+s]
+        self.data = self.data[:, (ycen-s):(ycen+s), (xcen-s):(xcen+s)]
+        self.error = self.error[:, ycen-s:ycen+s, xcen-s:xcen+s]
 
-        if writecube:
+        if write:
             primary = fits.PrimaryHDU(self.data)
             hdu1 = fits.ImageHDU(self.error)
             hdul = fits.HDUList([primary, hdu1])
             hdul.writeto(path+'minicube.fits', overwrite=True)
 
-        return None
 
     def loadFitsCube(self, filename, cz=None, extension_hdr=None, extension_data=None,
                      extension_mask=None, extension_error=None,
                      extension_errorweight=None, extensionProjects_hdr=0):
-        """
-        Load data from a FITS image into a Data object
+        """Load data from a FITS image into a Data object
 
         Parameters
         --------------
-        filename : string
+        filename : `string`
             Name or Path of the FITS image from which the data shall be loaded
-
-
-        extension_hdr : int or string, optional with default: None
+        cz: `float`
+            systemic velocity of the object
+        extension_hdr : `int` or `string`, optional with default: None
             Number or name of the FITS extension containing the fits header to be used for the cube information like
             wavelength or WCS system.
-
-        extension_data : int or string, optional with default: None
+        extension_data : `int` or string, optional with default: None
             Number or name of the FITS extension containing the data
-
-        extension_error : int or string, optional with default: None
+        extension_error : `int` or string, optional with default: None
             Number or string of the FITS extension containing the errors for the values
-
-        extension_mask : int or string, optional with default: None
+        extension_mask : `int` or string, optional with default: None
             Number or name of the FITS extension containing the masked pixels
         """
 
@@ -125,7 +127,6 @@ class Cube(Data):
             self.wvl = self.header['CDELT3']*np.arange(self.dim[0]) + self.header['CRVAL3']
         except:
             self.wvl = self.header['CD3_3']*np.arange(self.dim[0]) + self.header['CRVAL3']
-
         else:
             pass
 
@@ -133,24 +134,23 @@ class Cube(Data):
 
         hdu.close()
 
-    def get_AGN_spectrum(self, writespec=True, path='Ouput/'):
-        """
-        Reads table that contains parameters of the QSO spectrum model
+    def get_AGN_spectrum(self, write=True, path=None):
+        """Collapses 3D and extracts the spectrum from the brightest pixel.
 
         Parameters
         ----------
-        writespec : `boolean`
+        write: `boolean`
             if TRUE: writes output file
         path : `str`
-            path where output file will be written to
+            path to which output file will be saved
 
         Returns
         -------
         coor: `tuple`
             (x,y) coordinates of AGN in data cube
-        spectrum: `numpy array`
+        spectrum: `numpy.ndarray`
             1D spectrum extracted from the AGN spaxel
-        error: `numpy array`
+        error: `numpy.ndarray`
             1D error spectrum extracted from the AGN spaxel
         """
 
@@ -159,12 +159,11 @@ class Cube(Data):
         spectrum = self.data[:, coor[0], coor[1]]
         error = self.error[:, coor[0], coor[1]]
 
-        if writespec:
+        if write:
             primary = fits.PrimaryHDU(self.wvl)
             hdu0 = fits.ImageHDU(spectrum)
             hdu1 = fits.ImageHDU(error)
             hdul = fits.HDUList([primary, hdu0, hdu1])
             hdul.writeto(path + '/AGNspec.fits', overwrite=True)
-
 
         return coor, spectrum, error

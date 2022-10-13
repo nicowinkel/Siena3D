@@ -18,7 +18,6 @@ from astropy.modeling import models, fitting
 from maoppy.psfmodel import Psfao, psffit
 from maoppy.instrument import muse_nfm
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 
 if sys.version_info < (3, 9):
     # importlib.resources either doesn't exist or lacks the files()
@@ -37,23 +36,19 @@ class Astrometry(Cube):
     ----------
     cubefile : `string`
         path to the original datacube
-    eline_table : `string`
-        path to the output file from the AGN fitting
+    parfile : `string`, optional with default: "parameters.par"
+        file name of the parameters file
     """
 
-    def __init__(self, cubefile, parfile='parameters.par', psf_model='PSFAO19'):
-
+    def __init__(self, cubefile, parfile='parameters.par'):
+        """  Setup working data and files
+        """
         self.print_logo()
-
-        # setup working data and files
         self.cubefile = cubefile
         self.parfile = parfile
 
-
     def print_logo(self):
-
-        """
-        Prints the SIENA logo
+        """ Prints the Siena3D logo
         """
 
         pkg = importlib_resources.files("siena3d")
@@ -69,8 +64,7 @@ class Astrometry(Cube):
             string = ("%s".center((terminalsize[0] - logosize[0] // 2) // 2) % line)[:terminalsize[0]]
             print(string)
 
-
-    def setup_AGN_spectrum(self, cubefile):
+    def setup_agn_spectrum(self, cubefile):
         """
         This function reads the original data cube and
             (1) extracts a minicube, i.e. a cube that is both truncated in
@@ -84,7 +78,7 @@ class Astrometry(Cube):
         Parameters
         ----------
         cubefile : `string`
-            file path of the original data cube
+            file name of the input data cube
         """
 
         # initialize cube
@@ -92,10 +86,10 @@ class Astrometry(Cube):
         self.cube.loadFitsCube(cubefile, cz=self.par.cz, extension_hdr=1, extension_data=1, extension_error=2)
 
         # get minicube
-        self.cube.get_minicube(writecube=True, path='Output/')
+        self.cube.get_minicube(wvl_min=4750, wvl_max=5100, ncrop=self.par.ncrop, write=True, path='Output/')
 
         # get full AGN spectrum and coordinates in original data cube
-        self.cube.AGN_loc, self.cube.AGN_spectrum, self.cube.AGN_error = self.cube.get_AGN_spectrum(writespec=True,
+        self.cube.AGN_loc, self.cube.AGN_spectrum, self.cube.AGN_error = self.cube.get_AGN_spectrum(write=True,
                                                                                                     path='Output/')
         # get AGN spectrum
         self.spectrum = Spectrum(self.cube, wvl_start=self.par.wvl_start, wvl_end=self.par.wvl_end)
@@ -107,48 +101,44 @@ class Astrometry(Cube):
         self.spectrum.fit()
 
         # load fit result from written file
-        self.par_table = self.load_table(file='Output/par_table.fits')
+        self.par_table = self.load_table(filename='Output/par_table.fits')
 
-
-    def load_table(self, file):
+    def load_table(self, filename):
         """
         Reads table that contains parameters of the QSO spectrum model
 
         Parameters
         ----------
-        file : `string`
+        filename : `string`
             file path of eline table
 
         Returns
         -------
-        table: `astropy.table`
+        table: `astropy.table.Table`
             astropy table with data from eline table file
         """
 
-        hdul = fits.open(file)
+        hdul = fits.open(filename)
         table = Table(hdul[1].data)
 
         return table
 
-    def setup_basis_models(self, gaussmodels, components):
+    def setup_basis_models(self, components):
         """
         This function combines models for which the flux ratio and kinematics
-        were determined from the AGN spectrum.
-        In this, basis_models contains all
-        kinematically (and flux-) tied base components
+        are determined from the best-fit AGN spectrum. Thus, a basis_model contains
+        all emission lines and ties the kinematic and flux-ratios amongst them.
 
         Parameters
         ----------
-        gaussmodels : `astropy models`
-            emission line models
-        components : `strings`
-            names of the kinematic components which may contain several different emission
-            line components
+        components : `list`
+            names of the kinematic components which may contain contributions
+            from multiple emission lines
 
         Returns
         -------
-        basis_models: `astropy models`
-            collection of kinematic components
+        basis_models: class with attributes `astropy.modeling.functional_models.Gaussian1D`
+            attributes contain the combined models for the respective kinematic component
         """
 
         # load best-fit parameters from AGN spectrum
@@ -184,7 +174,7 @@ class Astrometry(Cube):
 
         Parameters
         ----------
-        wvl : `numpy array`
+        wvl : `numpy.array`
             wavelength array
         models : `astropy models`
             collection of kinematic components
@@ -207,25 +197,24 @@ class Astrometry(Cube):
         return basis
 
     def fit_spectrum(self, wvl, spectrum, error):
-        """
-        fit an individual spectrum with the basis
+        """  NNLS fit of an individual spectrum using the basis spectra.
 
         Parameters
         ----------
-        wvl : `numpy array`
-            wavelength
-        spectrum : `numpy array`
-            spectrum, must have the same dimension as wvl
-        error : `numpy array`
-            error, must have the same dimension as wvl
+        wvl : `numpy.array`
+            wavelength array
+        spectrum : `numpy.array`
+            1D spectrum, must have the same dimension as wvl
+        error : `numpy.array`
+            1D error array, must have the same dimension as wvl
 
         Returns
         -------
-        popt: `array`
+        popt: `numpy.array`
             Optimal values for the parameters so that the sum
             of the squared residuals of f(xdata, *popt) - ydata is minimized.
-        model_spec: `array`
-            best-fitting model spectrum. Has the same dimension as wvl
+        model_spec: `numpy.array`
+            best-fitting model spectrum. Has the same dimension as wvl.
         """
 
         # Subtract continuum from input spectrum
@@ -242,7 +231,7 @@ class Astrometry(Cube):
         A[np.isnan(A)] = 0
 
         b = spec_eline
-        w = 1 / error
+        w = 1 / error**2
 
         wmatrix = np.full((len(self.spectrum.components), w.shape[0]), w).T
 
@@ -253,27 +242,25 @@ class Astrometry(Cube):
 
         return popt, model_spec
 
-
     def fit_cube(self, wvl, data, error):
         """
-        Performs a linear fitting of the basis components
-        to each spectrum of the data cube
+        Performs NNLS of the basis components to each spectrum of the (cropped) input data cube.
 
         Parameters
         ----------
-        wvl : `numpy array`
+        wvl : `numpy.array`
             wavelength
-        data : `numpy array`
+        data : `numpy.array`
             data, must have the same dimension as wvl
-        error : `numpy array`
+        error : `numpy.array`
             error, must have the same dimension as wvl
 
         Returns
         -------
-        flux: `numpy array`
+        flux: `numpy.array`
             Collection of 2D surface brightness maps for the kinematic components.
             Array has the shape [data.shape[1],data.shape[2],#components]
-        dflux: `numpy array`
+        dflux: `numpy.array`
             Collection of 2D surface brightness errors for the kinematic components.
             Has the same shape as flux.
         """
@@ -301,12 +288,7 @@ class Astrometry(Cube):
                 # store results in array
                 scalefactor_map[i, j] = scalefactor
                 dscalefactor_map[i, j] = dscalefactor
-        '''
-        for idx, component in enumerate(self.spectrum.components.keys()):
-            plt.imshow(scalefactor_map[:, :, idx]/dscalefactor_map[:, :, idx])
-            plt.colorbar()
-            plt.show()
-        '''
+
         # convert fit results from 3D array to attributes
         flux = type('', (), {})()
         dflux = type('', (), {})()
@@ -317,18 +299,11 @@ class Astrometry(Cube):
         return flux, dflux
 
     def get_PSFmodel(self):
-        """
-        PSF model for the broad line emission that is point-like
-
-        Parameters
-        ----------
-        model : `string`
-            model with which the 2D light distritbution will be fitted.
-            Available options: 'Gauss', 'Moffat', 'PSFAO19'
+        """ PSF model for the broad (point-like) emission.
 
         Returns
         -------
-        model: `astropy.model Moffat2D`
+        model: `maoppy.PSFAO`
              best-fitting model for the 2D surface brightness profile of the input component
         """
 
@@ -396,26 +371,24 @@ class Astrometry(Cube):
 
             model = type('', (), {})()  # contains the position attributes
             model.parameters = psfao.x
-            model.x_0 = (psfao.dxdy[0] + self.cube.ncrop / 2) * u.pix
-            model.y_0 = (psfao.dxdy[1] + self.cube.ncrop / 2) * u.pix
+            model.x_0 = (psfao.dxdy[0] + self.par.ncrop / 2) * u.pix
+            model.y_0 = (psfao.dxdy[1] + self.par.ncrop / 2) * u.pix
 
             return model
 
     def fit_PSFloc(self, image, error):
-        """
-        Fit PSF model to light distribution where the only free parameters are
-        (x,y,flux)
+        """ Fit PSF model to light distribution where the only free parameters are (x, y, amplitude)
 
         Parameters
         ----------
-        image : `numpy array`
+        image : `numpy.array`
             2D light distribution
-        error : `numpy array`
+        error : `numpy.array`
             2D light distribution error, must be of the same shape as image
 
         Returns
         -------
-        model: `astropy.model Moffat2D`
+        model: `maoppy.psfmodel.Psfao` or `astropy.modeling.functional_models.Moffat2D` or `astropy.model.Gaussian2D`
              best-fitting model for the 2D surface brightness profile of the input component
         """
 
@@ -496,30 +469,29 @@ class Astrometry(Cube):
             img_model = fitao
 
             model = type('', (), {})()  # contains the position attributes
-            model.x_0 = (psfao.dxdy[0] + self.cube.ncrop / 2) * u.pix
-            model.y_0 = (psfao.dxdy[1] + self.cube.ncrop / 2) * u.pix
+            model.x_0 = (psfao.dxdy[0] + self.par.ncrop / 2) * u.pix
+            model.y_0 = (psfao.dxdy[1] + self.par.ncrop / 2) * u.pix
 
         return img_model, model
 
-
     def get_COMPlocs(self, mcmc=True, nmcmc=20):
         """
-        For each of the kin. component, this function fits the PSF to the 2D light distribution.
+        For each of the kinematic components, this function fits the PSF to the 2D light distribution.
         Computes the position of the centroid relative to the PSF model centroid.
 
         Parameters
         ----------
-        mcmc : `boolean`
+        mcmc : `boolean`, optional with default: True
             if errors on the location should be computed using bootstrapping
-        nmcmc : `numpy array`
+        nmcmc : `integer`, optional with default: 20
             number of bootstraps
 
         Returns
         -------
-        fluxmodels: `astropy models`
+        fluxmodels: `numpy.array`
              images of the model surface brightness distribution
         loxs: 'tuple'
-             coordinates of the centroid relative to the PSF location
+             (x,y) coordinates of the centroid in the minicube frame
         """
 
         # Initialize two attributes for images and centroid coordinates respectively
@@ -543,7 +515,6 @@ class Astrometry(Cube):
 
                 loc = np.nanmedian(loc_mcmc, axis=0)
                 loc_err = np.std(loc_mcmc, axis=0)
-
             else:
                 loc = (np.nan, np.nan)
                 loc_err = (np.nan, np.nan)
@@ -557,11 +528,11 @@ class Astrometry(Cube):
         """
         For MUSE NFM-AO the systematic error from the PSF model in the center is larger that
         the statistical error of the noise in the data cube.
-        estimate the systematic error from the residuals of the point-like emission from the BLR
+        Estimate the systematic error from the residuals of the point-like emission from the BLR
 
         Returns
         -------
-        sysmap: `numpy array`
+        sysmap: `numpy.array`
             normalized systematic error of the PSF model
         """
 
@@ -572,9 +543,7 @@ class Astrometry(Cube):
         return sysmap
 
     def get_offset(self, component):
-        """
-        This function computes the offset px
-        and from the PSF centroids from the BLR
+        """ Computes the centroids' spatial offset from the broad line emission.
 
         Parameters
         ----------
@@ -591,19 +560,21 @@ class Astrometry(Cube):
 
         return px, dpx
 
-    def makedir(self, path='.'):
-        """
-        Creates output directory
+    def makedir(self, path=''):
+        """ Creates output directories
+
+        Parameters
+        ----------
+        path : `string`
+            output directory
         """
         if not os.path.exists(path + '/Output/'):
             os.makedirs(path + '/Output/')
         if not os.path.exists(path + '/Output/maps'):
             os.makedirs(path + '/Output/maps')
 
-
     def write(self, path):
-        """
-        Write flux maps
+        """ Write flux maps
 
         Parameters
         ----------
@@ -640,14 +611,14 @@ class Astrometry(Cube):
         self.makedir('.')
 
         # retrieve minicube, AGN spectrum and fit
-        self.par = siena3d.parameters.load_parList(self.parfile)
+        self.par = siena3d.parameters.load_parlist(self.parfile)
 
         print(' [1] Get AGN spectrum')
-        self.setup_AGN_spectrum(self.cubefile)
+        self.setup_agn_spectrum(self.cubefile)
 
         # combine astropy models
         print(' [2] Setup basis')
-        self.basis_models = self.setup_basis_models(self.spectrum.eline_models, self.spectrum.components)
+        self.basis_models = self.setup_basis_models(self.spectrum.components)
 
         # initialize arrays containing normalized spectra
         self.basis = self.setup_basis_arrays(self.wvl, self.basis_models)

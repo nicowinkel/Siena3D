@@ -12,7 +12,7 @@ class Data(Header):
 
      Parameters
      ----------
-     data : `numpy.ndarray`, optional
+    data : `numpy.ndarray`, optional
         A 1D, 2D, or a 3D numpy array containing all the data. The elements
         of a 1D array follows the wavelength elements. A 2D array should be
         structured such that the different spectra or located along the

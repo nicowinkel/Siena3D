@@ -301,6 +301,7 @@ class Final_Plot():
         set_rc_params()
 
     def plot_spectrum(self, astrometry, gs=None, coor=(0, 0), savefig=False):
+
         """
         Plots a spectrum from the minicube
 
@@ -414,8 +415,8 @@ class Final_Plot():
                 saves plot as .png file
         """
 
-        extent = np.array([-astrometry.cube.ncrop / 2, astrometry.cube.ncrop / 2,
-                           -astrometry.cube.ncrop / 2, astrometry.cube.ncrop / 2]
+        extent = np.array([-astrometry.par.ncrop / 2, astrometry.par.ncrop / 2,
+                           -astrometry.par.ncrop / 2, astrometry.par.ncrop / 2]
                           )
 
         # extent *= astrometry.par.sampling * 1e3  # implement cellsize in cube!
@@ -423,7 +424,6 @@ class Final_Plot():
         if gs == None:
             fig = plt.figure(figsize=(9, 2 + 1.5 * len(astrometry.fluxmap.__dict__)), dpi=150)
             gs = gridspec.GridSpec(3, len(plotmaps) + 1, wspace=.07, hspace=.06)
-            print('paperlapapp')
 
         # Top row: flux maps
         cmap = mpl.cm.get_cmap('gist_earth_r')
@@ -535,9 +535,9 @@ class Final_Plot():
                 colorbar(ax, im, label=cbarlabel)
 
         # *** interactive plot ***
-        self.boxes = np.full([astrometry.cube.ncrop, astrometry.cube.ncrop], mpl.lines.Line2D)
-        for i in range(astrometry.cube.ncrop):
-            for j in range(astrometry.cube.ncrop):
+        self.boxes = np.full([astrometry.par.ncrop, astrometry.par.ncrop], mpl.lines.Line2D)
+        for i in range(astrometry.par.ncrop):
+            for j in range(astrometry.par.ncrop):
                 # plot all boxes
                 xbox = np.array([i, i, i + 1, i + 1, i]) - .5
                 ybox = np.array([j, j + 1, j + 1, j, j]) - .5
@@ -576,9 +576,8 @@ class Final_Plot():
         self.fig.canvas.draw()
 
     def on_press(self, event):
-        '''
-        function triggered by mouse pressing
-        '''
+        """ Function triggered by mouse clicking
+        """
 
         coor = (round(event.xdata), round(event.ydata))
         self.show_box(coor)
@@ -611,8 +610,7 @@ class Final_Plot():
 
 
 def print_result(astrometry):
-    """
-        Print the spectroastrometry result
+    """Print the spectroastrometry result
     """
 
     print('\n')
@@ -642,9 +640,8 @@ def print_result(astrometry):
         print('%15s  F = (%2.2f \u00B1% 2.2f) x %15s' % (component,
                                                          np.nansum(getattr(astrometry.fluxmap, component)),
                                                          np.nansum(getattr(astrometry.errmap, component)),
-                                                         '1e-16 ergs-1cm-2'
+                                                         astrometry.cube.getHdrValue(keyword='BUNIT')
                                                          )
               )
     print('\n')
 
-    return None

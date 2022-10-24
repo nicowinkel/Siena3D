@@ -1,9 +1,18 @@
-cz                4913.4                      # systemic velocity of the source
-instr_fwhm        2.54                        # instrumentals resolution [Angstroem]
-wvl_start         4750                        # lower wavelength limit for emission line fitting
-wvl_end           5100                        # upper wavelength limit for emission line fitting
-sampling          0.025                       # spatial sampling of the input data cube [arcsec/px]
-ncrop             14                          # size of the patch around the QSO location which will be analysed [px]
-coor              2,2                         # coordinates for which spectrum in final plot will be shown
-psf_model         PSFAO19                     # model for the PSF, choose from `Gauss`, `Moffat`, `PSFAO19`
-plotmaps          broad,core,wing             # kinematic components that shall be included in the final plot
+obj               Mrk1044                       # object name
+input             Input/Mrk1044.fits            # input data cube
+cz                4913.4                        # systemic velocity of the source
+instr_fwhm        2.54                          # instrumentals resolution [Angstroem]
+wvl_start         4750                          # lower wavelength limit for emission line fitting
+wvl_end           5100                          # upper wavelength limit for emission line fitting
+sampling          0.025                         # spatial sampling of the input data cube [arcsec/px]
+ncrop             14                            # size of the patch around the QSO location which will be analysed [px]
+coor              2,2                           # coordinates for which spectrum in final plot will be shown
+psf_model         Moffat                       # model for the PSF, choose from `Moffat`, `PSFAO19`, "Gauss"
+plotmaps          broad,core,wing               # kinematic components that shall be included in the final plot
+samples_eline     100                           # number of Monte Carlo samples for emission line fit
+samples_spectro   100                           # number of Monte Carlo samples for spectroastrometry
+input_dir         Input                         # directory with input data
+output_dir        Output                        # output directory
+elines_par        elines.par                    # parameter file for emission line fit
+incl_cont         incl.cont                     # file with continuum regions
+excl_fit          excl.fit                      # file with masked regions for emission line fit

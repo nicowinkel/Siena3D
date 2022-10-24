@@ -1,12 +1,3 @@
-# '''
-# this file contains the emission lines that are included in the multi-Gaussian
-# model, the component to which they are kinematically tied, and the initial
-# guess for their value.
-# amplitude_init : fraction relative max flux density in AGN spectrum [None]
-# dmean_init: offset from restframe wavelength [Angstroem]
-# stddev_init: width of the line [Angstroem]
-# '''
-#
 # eline                 component       tied            amp_init    offset_init  stddev_init
 Hb_broad                broad           Hb_broad        .15          0            22
 FeII4924_broad          broad           Hb_broad        .05          0            22

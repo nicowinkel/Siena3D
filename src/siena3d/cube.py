@@ -48,7 +48,7 @@ class Cube(Data):
     def __init__(self, header=None, cz=None, data=None, error=None, mask=None):
         Header.__init__(self, header=header)
 
-    def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, write=True, path=''):
+    def get_minicube(self, wvl_min=4750, wvl_max=5100, ncrop=14, write=True, output='minicube.fits'):
         """Truncates the input data cube in both wavelength and spatial dimension.
         The resulting minicube has a shape of [something,ncrop,ncrop] and has the brightest pixel in its center.
 
@@ -62,8 +62,8 @@ class Cube(Data):
             spatial size [px] of the window to which the input cube will be cropped.
         write : `boolean`, optional with default: True
             whether minicube will be saved as fits file.
-        path : `str`, optional with default: ''
-            path to which output file will be saved
+        output : `str`, optional with default: 'minicube.fits'
+           output file that will be saved
         """
 
         # crop wvl axis in rest frame
@@ -85,7 +85,7 @@ class Cube(Data):
             primary = fits.PrimaryHDU(self.data)
             hdu1 = fits.ImageHDU(self.error)
             hdul = fits.HDUList([primary, hdu1])
-            hdul.writeto(path+'minicube.fits', overwrite=True)
+            hdul.writeto(output, overwrite=True)
 
 
     def loadFitsCube(self, filename, cz=None, extension_hdr=None, extension_data=None,
@@ -134,7 +134,7 @@ class Cube(Data):
 
         hdu.close()
 
-    def get_AGN_spectrum(self, write=True, path=None):
+    def get_AGN_spectrum(self, write=False, path=None):
         """Collapses 3D and extracts the spectrum from the brightest pixel.
 
         Parameters

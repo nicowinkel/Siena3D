@@ -15,7 +15,8 @@ from astropy.io import fits
 from astropy.table import Table
 from astropy import units as u
 from astropy.modeling import models, fitting
-from maoppy.psfmodel import Psfao, psffit
+from maoppy.psfmodel import Psfao
+from maoppy.psffit import psffit
 from maoppy.instrument import muse_nfm
 from tqdm import tqdm
 
@@ -34,8 +35,6 @@ class Astrometry(Cube):
 
     Parameters
     ----------
-    cubefile : `string`
-        path to the original datacube
     parfile : `string`, optional with default: "parameters.par"
         file name of the parameters file
     """
@@ -44,7 +43,6 @@ class Astrometry(Cube):
         """  Setup working data and files
         """
         self.print_logo()
-        self.cubefile = cubefile
         self.parfile = parfile
 
     def print_logo(self):
@@ -86,13 +84,14 @@ class Astrometry(Cube):
         self.cube.loadFitsCube(cubefile, cz=self.par.cz, extension_hdr=1, extension_data=1, extension_error=2)
 
         # get minicube
-        self.cube.get_minicube(wvl_min=4750, wvl_max=5100, ncrop=self.par.ncrop, write=True, path='Output/')
+        self.cube.get_minicube(wvl_min=4750, wvl_max=5100, ncrop=self.par.ncrop, write=True,
+                               output=self.par.output_dir + '/' + self.par.obj + '.minicube.fits')
 
         # get full AGN spectrum and coordinates in original data cube
-        self.cube.AGN_loc, self.cube.AGN_spectrum, self.cube.AGN_error = self.cube.get_AGN_spectrum(write=True,
-                                                                                                    path='Output/')
+        self.cube.AGN_loc, self.cube.AGN_spectrum, self.cube.AGN_error = \
+            self.cube.get_AGN_spectrum(write=False, path=self.par.output_dir + '/' + self.par.obj+'.')
         # get AGN spectrum
-        self.spectrum = Spectrum(self.cube, wvl_start=self.par.wvl_start, wvl_end=self.par.wvl_end)
+        self.spectrum = Spectrum(self.cube, self.par)
 
         # get mini-wvl array from truncated cube
         self.wvl = self.cube.wvl
@@ -101,7 +100,7 @@ class Astrometry(Cube):
         self.spectrum.fit()
 
         # load fit result from written file
-        self.par_table = self.load_table(filename='Output/par_table.fits')
+        self.par_table = self.load_table(filename=self.par.output_dir + '/' + self.par.obj + '.par_table.fits')
 
     def load_table(self, filename):
         """
@@ -142,7 +141,7 @@ class Astrometry(Cube):
         """
 
         # load best-fit parameters from AGN spectrum
-        with fits.open('Output/par_table.fits') as hdul:
+        with fits.open(self.par.output_dir + '/' + self.par.obj + '.par_table.fits') as hdul:
             t = Table(hdul[1].data)
         basis_models = type('', (), {})()
 
@@ -260,13 +259,13 @@ class Astrometry(Cube):
         flux: `numpy.array`
             Collection of 2D surface brightness maps for the kinematic components.
             Array has the shape [data.shape[1],data.shape[2],#components]
-        dflux: `numpy.array`
+        error: `numpy.array`
             Collection of 2D surface brightness errors for the kinematic components.
             Has the same shape as flux.
         """
 
         scalefactor_map = np.full([data.shape[1], data.shape[2], len(self.spectrum.components)], np.nan)
-        dscalefactor_map = np.copy(scalefactor_map)
+        scaleerr_map = np.copy(scalefactor_map)
 
         for i in tqdm(np.arange(data.shape[1])):
             for j in np.arange(data.shape[2]):
@@ -277,26 +276,26 @@ class Astrometry(Cube):
                 # linear regression
                 # fit use fluxes as fitparameter rather than amplitudes!
                 # using MC error estimation
-                scalefactor_mcmc = np.zeros((100, len(self.spectrum.components)))
-                for k in np.arange(100):
-                    spec_mcmc = np.random.normal(spec, err)
-                    scalefactork, _ = self.fit_spectrum(wvl, spec_mcmc, err)
-                    scalefactor_mcmc[k] = scalefactork
-                scalefactor = np.nanmedian(scalefactor_mcmc, axis=0)
-                dscalefactor = np.std(scalefactor_mcmc, axis=0)
+                scalefactor_mc = np.zeros((self.par.samples_spectro, len(self.spectrum.components)))
+                for k in np.arange(self.par.samples_spectro):
+                    spec_mc = np.random.normal(spec, err)
+                    scalefactork, _ = self.fit_spectrum(wvl, spec_mc, err)
+                    scalefactor_mc[k] = scalefactork
+                scalefactor = np.nanmedian(scalefactor_mc, axis=0)
+                scaleerr = np.std(scalefactor_mc, axis=0)
 
                 # store results in array
                 scalefactor_map[i, j] = scalefactor
-                dscalefactor_map[i, j] = dscalefactor
+                scaleerr_map[i, j] = scaleerr
 
         # convert fit results from 3D array to attributes
         flux = type('', (), {})()
-        dflux = type('', (), {})()
+        error = type('', (), {})()
         for idx, component in enumerate(self.spectrum.components.keys()):
             setattr(flux, component, scalefactor_map[:, :, idx])
-            setattr(dflux, component, dscalefactor_map[:, :, idx])
+            setattr(error, component, scaleerr_map[:, :, idx])
 
-        return flux, dflux
+        return flux, error
 
     def get_PSFmodel(self):
         """ PSF model for the broad (point-like) emission.
@@ -319,16 +318,16 @@ class Astrometry(Cube):
             # returns image of PSF, PSF parameters
             if self.par.psf_model == 'Moffat':
                 model_init = models.Moffat2D(amplitude=np.nanmax(image),
-                                             x_0=image.shape[0],
-                                             y_0=image.shape[1],
+                                             x_0=image.shape[0]/2,
+                                             y_0=image.shape[1]/2,
                                              gamma=1,
                                              alpha=1)
             elif self.par.psf_model == 'Gauss':
                 model_init = models.Gaussian2D(amplitude=np.nanmax(image),
-                                               x_mean=image.shape[0],
-                                               y_mean=image.shape[1],
-                                               x_stddev=image.shape[1],
-                                               y_stddev=image.shape[1],
+                                               x_mean=image.shape[0]/2,
+                                               y_mean=image.shape[1]/2,
+                                               x_stddev=image.shape[0]/3,
+                                               y_stddev=image.shape[1]/3,
                                                theta=0
                                                )
                 # rename attribute for consistent nomenclature among models
@@ -399,8 +398,8 @@ class Astrometry(Cube):
 
             if self.par.psf_model == 'Moffat':
                 model_init = models.Moffat2D(amplitude=np.nanmax(image),
-                                             x_0=image.shape[0],
-                                             y_0=image.shape[1],
+                                             x_0=image.shape[0]/2,
+                                             y_0=image.shape[1]/2,
                                              gamma=1,
                                              alpha=1)
 
@@ -474,17 +473,15 @@ class Astrometry(Cube):
 
         return img_model, model
 
-    def get_COMPlocs(self, mcmc=True, nmcmc=20):
+    def get_COMPlocs(self, mc_error=True):
         """
         For each of the kinematic components, this function fits the PSF to the 2D light distribution.
         Computes the position of the centroid relative to the PSF model centroid.
 
         Parameters
         ----------
-        mcmc : `boolean`, optional with default: True
+        mc_error : `boolean`, optional with default: True
             if errors on the location should be computed using bootstrapping
-        nmcmc : `integer`, optional with default: 20
-            number of bootstraps
 
         Returns
         -------
@@ -506,15 +503,15 @@ class Astrometry(Cube):
 
             img_model, model = self.fit_PSFloc(image, error)
 
-            if mcmc:
-                loc_mcmc = np.zeros((nmcmc, 2))
-                for i in np.arange(nmcmc):
-                    image_mcmc = np.random.normal(image, error)
-                    image_i, model_i = self.fit_PSFloc(image_mcmc, error)
-                    loc_mcmc[i] = np.array([model_i.x_0.value, model_i.y_0.value])
+            if mc_error:
+                loc_mc = np.zeros((self.par.samples_eline, 2))
+                for i in np.arange(self.par.samples_eline):
+                    image_mc = np.random.normal(image, error)
+                    image_i, model_i = self.fit_PSFloc(image_mc, error)
+                    loc_mc[i] = np.array([model_i.x_0.value, model_i.y_0.value])
 
-                loc = np.nanmedian(loc_mcmc, axis=0)
-                loc_err = np.std(loc_mcmc, axis=0)
+                loc = np.nanmedian(loc_mc, axis=0)
+                loc_err = np.std(loc_mc, axis=0)
             else:
                 loc = (np.nan, np.nan)
                 loc_err = (np.nan, np.nan)
@@ -560,39 +557,29 @@ class Astrometry(Cube):
 
         return px, dpx
 
-    def makedir(self, path=''):
+    def makedir(self):
         """ Creates output directories
-
-        Parameters
-        ----------
-        path : `string`
-            output directory
         """
-        if not os.path.exists(path + '/Output/'):
-            os.makedirs(path + '/Output/')
-        if not os.path.exists(path + '/Output/maps'):
-            os.makedirs(path + '/Output/maps')
+        if not os.path.exists(self.par.output_dir):
+            os.makedirs(self.par.output_dir)
+        if not os.path.exists(self.par.output_dir + '/' + self.par.obj + '_' + 'maps/'):
+            os.makedirs(self.par.output_dir + '/' + self.par.obj + '_' + 'maps/')
 
-    def write(self, path):
+    def write(self):
         """ Write flux maps
-
-        Parameters
-        ----------
-        path : `string`
-            output directory
         """
 
         for component in self.spectrum.components:
 
             fluxmap = getattr(self.fluxmap, component)
-            dfluxmap = getattr(self.errmap, component)
+            errormap = getattr(self.errmap, component)
             modelmap = getattr(self.fluxmodel, component)
-            residuals = fluxmap - modelmap / getattr(self.errmap, component)
+            residuals = (fluxmap - modelmap) / getattr(self.errmap, component)
 
             hdu_primary = fits.PrimaryHDU()
             hdul = fits.HDUList([hdu_primary])
             hdul.append(fits.ImageHDU(fluxmap))
-            hdul.append(fits.ImageHDU(dfluxmap))
+            hdul.append(fits.ImageHDU(errormap))
             hdul.append(fits.ImageHDU(modelmap))
             hdul.append(fits.ImageHDU(residuals))
 
@@ -600,21 +587,21 @@ class Astrometry(Cube):
                 hdul[1].header[i] = self.cube.header[i]
 
             hdul[1].header['extname'] = 'Flux'
-            hdul[2].header['extname'] = 'Flux_err'
+            hdul[2].header['extname'] = 'Error'
             hdul[3].header['extname'] = 'Model'
             hdul[4].header['extname'] = 'Residuals'
 
-            hdul.writeto(path + '/Output/maps/' + component + '.fits', overwrite=True)
+            hdul.writeto(self.par.output_dir + '/' + self.par.obj + '_' + 'maps/' + component + '.fits', overwrite=True)
 
     def run(self):
 
-        self.makedir('.')
-
-        # retrieve minicube, AGN spectrum and fit
+        # read parameter file
         self.par = siena3d.parameters.load_parlist(self.parfile)
 
+        self.makedir()
+
         print(' [1] Get AGN spectrum')
-        self.setup_agn_spectrum(self.cubefile)
+        self.setup_agn_spectrum(self.par.input)
 
         # combine astropy models
         print(' [2] Setup basis')
@@ -632,15 +619,15 @@ class Astrometry(Cube):
 
         # find centroid for each of the kinematic components' light distribution
         print(' [4] Find centroids')
-        self.fluxmodel, self.loc = self.get_COMPlocs(mcmc=True)
+        self.fluxmodel, self.loc = self.get_COMPlocs(mc_error=True)
 
         # estimate the systematic error
         self.sysmap = self.estimate_sys()
 
         # print and plot results
         siena3d.plot.print_result(self)
-        self.write('.')
+        self.write()
 
         # plot the final result
-        final_plot = siena3d.plot.Final_Plot()
+        final_plot = siena3d.plot.FinalPlot()
         final_plot.plot_all(self, coor=self.par.coor, plotmaps=self.par.plotmaps)

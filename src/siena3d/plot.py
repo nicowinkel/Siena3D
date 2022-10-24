@@ -116,7 +116,7 @@ def scalebar(ax, astrometry, loc=(0.5, 0.5), c='k', distance=50):
 
 # Functions for sspectrum class
 
-def plot_AGNspec_model(spectrum, axes=None, savefig=True, path='Output/'):
+def plot_AGNspec_model(spectrum, axes=None, savefig=True):
     set_rc_params()
 
     # get line parameters from compound model
@@ -168,8 +168,7 @@ def plot_AGNspec_model(spectrum, axes=None, savefig=True, path='Output/'):
     plt.ylabel(ylabel, fontsize=15)
 
     if savefig:
-        astrometry.makedir(path)
-        fig.savefig(path + 'Output/AGNspec_model.png', bbox_inches='tight')
+        fig.savefig(spectrum.par.output_dir + '/' + spectrum.par.obj + '.agnspec_model.png', bbox_inches='tight')
 
     return None
 
@@ -177,12 +176,11 @@ def plot_AGNspec_model(spectrum, axes=None, savefig=True, path='Output/'):
 # Functions for spectroastrometry class
 
 def plotly_spectrum(spectrum, savefig=False):
-    """
-    Generates an interactive html file that show the plot of the best fit model
+    """ Generates an interactive html file that show the plot of the best fit model
     """
 
     # Open the best_fit_components file
-    with fits.open(os.path.join("Output", "best_model_components.fits")) as hdul:
+    with fits.open(spectrum.par.output_dir + '/' + spectrum.par.obj + '.AGNspec_components.fits') as hdul:
         t = hdul[1].data  # FITS table data is stored on FITS extension 1
     # cols = [i.name for i in t.columns]
 
@@ -272,11 +270,11 @@ def plotly_spectrum(spectrum, savefig=False):
 
     # write to figure to output directory
     if savefig:
-        fig.write_html(os.path.join("Output", "AGNspec_model.html"), include_mathjax="cdn")
-        # fig.write_image(run_dir.joinpath("%s_bestfit.pdf" % objname))
+        fig.write_html(spectrum.par.output_dir + '/' + spectrum.par.obj + '.agnspec_model.html', include_mathjax="cdn")
+        #fig.write_image("Output/AGNspec_model.pdf")
 
 
-class Final_Plot():
+class FinalPlot:
     """
     Class that generates plots for the  both spectra before/after fitting together with the
     surface brightness maps of the kinematic components
@@ -292,9 +290,6 @@ class Final_Plot():
 
     savefig : `boolean`
         writes figure if true.
-
-    path : `boolean`
-        path relative to working dir where the 'Ouput" directory will be created.
     """
 
     def __init__(self):
@@ -344,7 +339,9 @@ class Final_Plot():
                      label=comp)
         ax0.legend(fontsize=8)
         ax0.set_xlim(min(astrometry.wvl), max(astrometry.wvl))
-        ax0.set_ylim(1e-4 * np.nanmax(astrometry.cube.AGN_spectrum))
+        #ax0.set_ylim(np.nanmax(astrometry.cube.AGN_spectrum))
+        print(np.nanmax(astrometry.cube.AGN_spectrum))
+        ax0.set_yticklabels([])
         ax0.text(0.05, 0.85, 'init', fontsize=12, ha='left', color='white', transform=ax0.transAxes,
                  bbox=dict(facecolor='darkblue', alpha=.8, edgecolor='white', boxstyle='round,pad=.5'))
 
@@ -545,13 +542,12 @@ class Final_Plot():
                 self.boxes[i, j].set_visible(False)
 
         if savefig:
-            astrometry.makedir(path)
-            plt.savefig(path + 'Output/Spectroastrometry_maps.png', bbox_inches='tight')
+            plt.savefig(astrometry.par.output_dir + '/' + astrometry.par.obj +
+                        '.spectroastrometry_maps.png', bbox_inches='tight')
 
     def show_box(self, coor):
-        '''
-        highlights pixel that is located at input the coor
-        '''
+        """ highlights pixel that is located at input the coor
+        """
 
         for i in range(self.boxes.shape[0]):
             for j in range(self.boxes.shape[0]):
@@ -583,7 +579,7 @@ class Final_Plot():
         self.show_box(coor)
         self.plot_spectrum(self.astrometry, coor=coor, gs=self.inner1, savefig=False)
 
-    def plot_all(self, astrometry, coor=(2, 2), plotmaps=['broad', 'core', 'wing'], savefig=True, path='.'):
+    def plot_all(self, astrometry, coor=(2, 2), plotmaps=['broad', 'core', 'wing'], savefig=True):
 
         self.astrometry = astrometry
         self.fig = plt.figure(figsize=(18, 7), dpi=150)
@@ -600,11 +596,11 @@ class Final_Plot():
         # interactive plot updating
         self.fig.canvas.mpl_connect('button_press_event', self.on_press)
 
-        plt.show()
-
         if savefig:
-            astrometry.makedir(path)
-            plt.savefig(path + '/Output/Spectroastrometry.jpg', bbox_inches='tight')
+            plt.savefig(astrometry.par.output_dir + '/' + astrometry.par.obj +
+                        '.spectroastrometry.jpg', bbox_inches='tight')
+
+        plt.show()
 
         return self.fig
 

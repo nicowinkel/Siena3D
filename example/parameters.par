@@ -3,6 +3,7 @@ instr_fwhm        2.54                        # instrumentals resolution [Angstr
 wvl_start         4750                        # lower wavelength limit for emission line fitting
 wvl_end           5100                        # upper wavelength limit for emission line fitting
 sampling          0.025                       # spatial sampling of the input data cube [arcsec/px]
+ncrop             14                          # size of the patch around the QSO location which will be analysed [px]
 coor              2,2                         # coordinates for which spectrum in final plot will be shown
-psf_model         PSFAO19                     # model for the PSF: Gauss, Moffat, PSFAO19
+psf_model         PSFAO19                     # model for the PSF, choose from `Gauss`, `Moffat`, `PSFAO19`
 plotmaps          broad,core,wing             # kinematic components that shall be included in the final plot

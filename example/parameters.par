@@ -7,7 +7,7 @@ wvl_end           5100                          # upper wavelength limit for emi
 sampling          0.025                         # spatial sampling of the input data cube [arcsec/px]
 ncrop             14                            # size of the patch around the QSO location which will be analysed [px]
 coor              2,2                           # coordinates for which spectrum in final plot will be shown
-psf_model         Moffat                       # model for the PSF, choose from `Moffat`, `PSFAO19`, "Gauss"
+psf_model         PSFAO19                       # model for the PSF, choose from `Moffat`, `PSFAO19`, "Gauss"
 plotmaps          broad,core,wing               # kinematic components that shall be included in the final plot
 samples_eline     100                           # number of Monte Carlo samples for emission line fit
 samples_spectro   100                           # number of Monte Carlo samples for spectroastrometry

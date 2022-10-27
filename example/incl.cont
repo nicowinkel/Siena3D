@@ -1,6 +1,3 @@
-#  this file contains the wavelength windows in which the
-#  AGN continuum is fitted with a power law
-
 #  [rest-frame]
 4750  4755
 5080  5090

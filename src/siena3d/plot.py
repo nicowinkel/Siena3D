@@ -340,7 +340,6 @@ class FinalPlot:
         ax0.legend(fontsize=8)
         ax0.set_xlim(min(astrometry.wvl), max(astrometry.wvl))
         #ax0.set_ylim(np.nanmax(astrometry.cube.AGN_spectrum))
-        print(np.nanmax(astrometry.cube.AGN_spectrum))
         ax0.set_yticklabels([])
         ax0.text(0.05, 0.85, 'init', fontsize=12, ha='left', color='white', transform=ax0.transAxes,
                  bbox=dict(facecolor='darkblue', alpha=.8, edgecolor='white', boxstyle='round,pad=.5'))

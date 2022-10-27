@@ -360,10 +360,12 @@ class Astrometry(Cube):
 
             # with warnings.catch_warnings():
             #    warnings.simplefilter("ignore")
-            psfao = psffit(image, Psfao, guess, weights=None,
-                           fixed=fixed, npixfit=None,  # fit keywords
-                           system=muse_nfm, samp=samp  # MUSE NFM keywords
+            Pmodel = Psfao(image.shape, system=muse_nfm, samp=samp)
+            psfao = psffit(image, Pmodel, guess, weights=None,
+                           fixed=fixed, npixfit=self.par.ncrop#,  # fit keywords
+                           #system=muse_nfm, samp=samp  # MUSE NFM keywords
                            )
+
 
             # flux_fit, bck_fit = psfao.flux_bck
             # fitao = flux_fit * psfao.psf + bck_fit
@@ -461,8 +463,9 @@ class Astrometry(Cube):
             samp = muse_nfm.samp(wavelength * 1e-10)  # sampling (2.0 for Shannon-Nyquist)
             fixed = [True, True, True, True, True, True, True]
 
-            psfao = psffit(image, Psfao, self.PSFmodel.parameters, weights=1 / error, fixed=fixed,
-                           npixfit=image.shape[0], system=muse_nfm, samp=samp)
+            Pmodel = Psfao(image.shape, system=muse_nfm, samp=samp)
+            psfao = psffit(image, Pmodel, self.PSFmodel.parameters, weights=1 / error, fixed=fixed,
+                           npixfit=image.shape[0])
 
             fitao = psfao.flux_bck[0] * psfao.psf + psfao.flux_bck[1]
             img_model = fitao

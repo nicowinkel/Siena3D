@@ -15,19 +15,19 @@ ESO VLT/MUSE. However, the method may also be applied to other science cases whe
 ## Installation
 The easiest way to install is to first create a dedicated conda environment prior to the installation:
 
-  (1) pip env create --name Siena3D
-  (2) conda activate Siena3D
+    conda create --name siena3d python=3.9
+    conda activate Siena3D
 
 In order to install Siena3D, one can obtain the package from PyPi with
 
-    pip install Siena3D
+    pip install siena3d
 
 
 In addition, the user needs to manually install the Maoppy package with the commnand
 
-  pip install git+https://gitlab.lam.fr/lam-grd-public/maoppy.git@master
+    pip install git+https://gitlab.lam.fr/lam-grd-public/maoppy.git@master
 
-More information on the Maoppy package can be found:[here](https://gitlab.lam.fr/lam-grd-public/maoppy).
+More information on the Maoppy package can be found [here](https://gitlab.lam.fr/lam-grd-public/maoppy).
 
 ## Basic usage
 The Siena3D code can be run entirely from the command line.  It is set up such that the files are placed in the "Input"
@@ -43,6 +43,6 @@ We refer to the Siena3D user manual for more information on running Siena3D and 
 ## Manual for more information on parameter file setup
 More details on the underlying algorithms and principles of Siena3D can be found in the
 [Siena3D User Manual](https://github.com/nicowinkel/Siena3D/blob/main/docs/Siena3D_User_Manual.pdf).
-It provides an overview of the options and tips 
+It provides an overview of the options and tips
 on how to setup the parameter files and specifies the required input data format
 structure to run Siena3D from the command line.

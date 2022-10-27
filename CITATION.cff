@@ -1,13 +1,21 @@
 cff-version: 1.2.0
-title: siena
+title: Siena3D
+version: 0.0.3
+date-released: 2022-10-25
+type: software
 message: If you use this software, please cite as below.
 date-released: 2022-08-29
-url: 'https://github.com/nicowinkel/siena'
-version: 0.0.1
-type: software
+url: 'https://github.com/nicowinkel/Siena3D'
+doi: 10.5281/zenodo.7247953
 authors:
   - family-names: Winkel
     given-names: Nico
     email: winkel@mpia.de
     affiliation: MPIA Heidelberg
     orcid: 'https://orcid.org/0000-0001-9428-6238'
+authors:
+  - family-names: Singha
+    given-names: Mainak
+    email: singham4@myumanitoba.ca
+    affiliation: University of Aanitoba
+    orcid: 'https://orcid.org/0000-0001-5687-1516'

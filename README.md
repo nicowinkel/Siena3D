@@ -18,10 +18,13 @@ The easiest way to install is to first create a dedicated conda environment prio
     conda create --name siena3d python=3.9
     conda activate Siena3D
 
-In order to install Siena3D, one can obtain the package from PyPi with
+In order to install Siena3D, first clone the repository with
 
-    pip install siena3d
+    git clone https://github.com/nicowinkel/Siena3D
 
+Go to the directory Siena3D install the package with
+
+    pip install .
 
 In addition, the user needs to manually install the Maoppy package with the commnand
 

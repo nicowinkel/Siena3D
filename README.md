@@ -22,7 +22,7 @@ In order to install Siena3D, first clone the repository with
 
     git clone https://github.com/nicowinkel/Siena3D
 
-Go to the directory Siena3D install the package with
+Go to the directory Siena3D and install the package with
 
     pip install .
 

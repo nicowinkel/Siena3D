@@ -180,7 +180,7 @@ def plotly_spectrum(spectrum, savefig=False):
     """
 
     # Open the best_fit_components file
-    with fits.open(spectrum.par.output_dir + '/' + spectrum.par.obj + '.AGNspec_components.fits') as hdul:
+    with fits.open(spectrum.par.output_dir + '/' + spectrum.par.obj + '.agnspec_components.fits') as hdul:
         t = hdul[1].data  # FITS table data is stored on FITS extension 1
     # cols = [i.name for i in t.columns]
 
@@ -333,7 +333,7 @@ class FinalPlot:
         ax0.step(astrometry.wvl + .5 * 1.25, 3 * astrometry.cube.AGN_spectrum / np.nanmax(astrometry.cube.AGN_spectrum),
                  linewidth=1, color='k', label='AGN')
         for idx, comp in enumerate(astrometry.spectrum.components):
-            spec_init = getattr(astrometry.basis, comp)
+            spec_init = getattr(astrometry.basis.arrays, comp)
             spec_init_norm = spec_init / np.nanmax(spec_init)
             ax0.plot(astrometry.wvl + .5 * 1.25, spec_init_norm, linestyle='--', linewidth=.8, color=colors[idx],
                      label=comp)
@@ -349,7 +349,7 @@ class FinalPlot:
         _, continuum_fit = astrometry.spectrum.subtract_continuum(astrometry.wvl, astrometry.cube.data[:, i, j])
         bestfit_spectrum = continuum_fit
         for idx, comp in enumerate(astrometry.spectrum.components):
-            spec_fit = getattr(astrometry.fluxmap, comp)[i, j] * getattr(astrometry.basis, comp)
+            spec_fit = getattr(astrometry.fluxmap, comp)[i, j] * getattr(astrometry.basis.arrays, comp)
             bestfit_spectrum = np.nansum([bestfit_spectrum, spec_fit], axis=0)
         spec = astrometry.cube.data[:, i, j]
         err = astrometry.cube.error[:, i, j]
@@ -359,7 +359,7 @@ class FinalPlot:
         ax1.plot(astrometry.wvl, bestfit_spectrum, linewidth=1, c='firebrick', label='model')
         ax1.step(astrometry.wvl + .5 * 1.25, spec, color='k', linewidth=1, label='data')
         for idx, comp in enumerate(astrometry.spectrum.components):
-            spec_fit = getattr(astrometry.fluxmap, comp)[coor[0], coor[1]] * getattr(astrometry.basis, comp)
+            spec_fit = getattr(astrometry.fluxmap, comp)[coor[0], coor[1]] * getattr(astrometry.basis.arrays, comp)
             ax1.fill_between(astrometry.wvl + .5 * 1.25, spec_fit, linewidth=1, color=colors[idx], label=comp)
         ax1.legend(fontsize=8)
         ax1.set_xlim(min(astrometry.wvl), max(astrometry.wvl))

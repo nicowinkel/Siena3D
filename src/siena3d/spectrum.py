@@ -3,6 +3,7 @@ This file contains the spectrum class
 """
 
 from .cube import Cube
+from .emission_line import EmissionLine, EmissionLineSet
 import siena3d.plot
 
 import numpy as np
@@ -25,21 +26,7 @@ else:
 
 
 
-class Eline(object):
-    """A class that represents an emission line as characterized by the parameters in the eline.par file
-    """
-
-    def __init__(self, component=None, tied=False, amp_init=0, offset_init=0, stddev_init=0, idx=None):
-
-        self.component = component
-        self.tied = tied                                                # bool whether component is kinematically tied
-        self.amp_init = amp_init                                        # initial guess for amplitude rel. to maxflux
-        self.offset_init = offset_init                                  # initial guess for offset from rest-frame
-        self.stddev_init = stddev_init                                  # initial guess for stddev
-        self.idx = idx                                                  # index in compound model
-
 class Spectrum(Cube):
-
     """
     A class representing 1D spectra.
 
@@ -67,10 +54,14 @@ class Spectrum(Cube):
         self.wvl = getattr(cube, 'wvl')                                 # rest-frame wavelength
         self.AGN_spectrum = getattr(cube, 'AGN_spectrum')               # full AGN spectrum
         self.AGN_error = getattr(cube, 'AGN_error')                     # full AGN error spectrum
+        self.cz = getattr(par, 'cz')
+        self.c = 2.99792458e5
 
         # load data from input files in working directory
         self.lambdarest = self.load_lambdarest()                        # rest-frame wavelengths of emission lines
-        self.elines_par, self.components = self.load_elines_par()       # loads eline.par file
+        self.elines = self.load_elines()                                # loads eline.par file
+        self.components = self.load_components()
+
         self.incl_cont = self.load_incl_cont()                          # loads eline.par file
 
         # setup emission line models
@@ -102,30 +93,24 @@ class Spectrum(Cube):
 
         return lambdarest
 
-    def load_elines_par(self):
+    def load_components(self):
         """Read in the emission line parameters file
 
-        Returns
-        -------
-        elines: `instance`
-            object of type 'Eline' with the initial guess paramters
-        components: `dictionary`
-            dictionary with the list of emission lines contained in each of the kinematic components
-        """
+       Returns
+       -------
+       components: `dictionary`
+           dictionary with the list of emission lines contained in each of the kinematic components
+       """
 
         elines_file = self.par.elines_par
         with open(elines_file) as f:
             lines = [line for line in f if not (line.startswith('#') or (line.split() == []))]
 
-        elines = type('', (), {})()
         components = {}
 
         for idx, line in enumerate(lines):
 
             eline, component, tied, amp_init, offset_init, stddev_init = line.split()
-            setattr(elines, eline,
-                    Eline(component, tied, float(amp_init), float(offset_init), float(stddev_init), idx)
-                    )
 
             # new key for every kin. component
             if component not in components.keys():
@@ -133,7 +118,38 @@ class Spectrum(Cube):
             else:
                 components[component].append(eline)
 
-        return elines, components
+        return components
+
+    def load_elines(self):
+        """Read in the emission line parameters file
+
+        Returns
+        -------
+        elines: `instance`
+                object of type 'Eline' with the initial guess parameters
+        """
+
+        elines_file = self.par.elines_par
+        with open(elines_file) as f:
+            lines = [line for line in f if not (line.startswith('#') or (line.split() == []))]
+
+        elines = EmissionLineSet()
+
+        for idx, line in enumerate(lines):
+
+            eline, component, tied, amp_init, vel_init, disp_init  = line.split()
+            emissionline = EmissionLine(name=eline,
+                                         component=component,
+                                         tied=tied,
+                                         idx=idx,
+                                         amplitude=float(amp_init),
+                                         vel=float(vel_init),
+                                         disp=float(disp_init)
+                                    )
+
+            elines.add_line(emissionline)
+
+        return elines.elines
 
     def load_incl_cont(self):
         """Read in the file that contains the AGN continuum regions
@@ -202,7 +218,8 @@ class Spectrum(Cube):
             """
             return lambda model: factor * getattr(model, 'amplitude_'+str(idx_ref))
 
-        for idx_eline, eline in enumerate(self.elines_par.__dict__):
+        for idx_eline, eline in enumerate(self.elines.keys()):
+
 
             # split name and component to which the emission line belongs
             # find the reference line to which the amplitude is coupled
@@ -221,7 +238,7 @@ class Spectrum(Cube):
                     factor = None
 
                 # index in compound model of reference line
-                idx_ref = getattr(self.elines_par, ref_name+'_'+component).idx
+                idx_ref = self.elines[ref_name+'_'+component].idx
 
                 # print(eline, ref_name, factor, idx_eline, idx_ref) # inspect which lines are coupled to which
 
@@ -233,7 +250,9 @@ class Spectrum(Cube):
         return None
 
     def couple_kinematics(self):
-        """ This functions couples the kinematics, as specified in the elines.par input file
+        """
+        This functions couples the kinematics, as according to the components specified
+        in the elines.par input file
         """
 
 
@@ -258,19 +277,19 @@ class Spectrum(Cube):
 
         # get all emission lines that are 'reference lines', i.e. a line to which others are kinematically coupled
         # for the 'reference lines', their name equals the column 'tied' in the elines.par file
-        isref = np.array([(eline == getattr(self.elines_par, eline).tied) for eline in self.elines_par.__dict__])
+        isref = np.array([(eline == self.elines[eline].tied) for eline in self.elines.keys()])
 
         for component in self.components:
 
             # get emission lines that belong to component
-            iscomponent = np.array([(component in eline) for eline in self.elines_par.__dict__])
-            component_lines = np.array([*vars(self.elines_par).keys()])[iscomponent]
+            iscomponent = np.array([(component in eline) for eline in self.elines.keys()])
+            component_lines = np.array(list(self.elines.keys()))[iscomponent]
 
             # get 'reference line' for this component
-            ref = (np.array([*vars(self.elines_par).keys()])[iscomponent & isref])[0]
+            ref = (np.array(list(self.elines.keys()))[iscomponent & isref])[0]
 
             # index in compound model of reference line
-            idx_ref = getattr(self.elines_par, ref).idx
+            idx_ref = self.elines[ref].idx
 
             # tie kinematics to reference line
             for eline in component_lines:
@@ -278,7 +297,7 @@ class Spectrum(Cube):
                 if not (eline == ref):
 
                     # index in compound model of emission line
-                    idx_eline = getattr(self.elines_par, eline).idx
+                    idx_eline = self.elines[eline].idx
 
                     # print(eline, idx_eline, ref, idx_ref) # inspect which elines are coupled to which
 
@@ -306,11 +325,12 @@ class Spectrum(Cube):
         # empty instance
         eline_models = type('', (), {})()
 
-        for eline in self.elines_par.__dict__:
+        for eline in self.elines.keys():
+            wave_rest = self.lambdarest[eline.split('_')[0]]
 
-            model = models.Gaussian1D(getattr(self.elines_par, eline).amp_init * a0,
-                                      self.lambdarest[eline.split('_')[0]]+getattr(self.elines_par, eline).offset_init,
-                                      getattr(self.elines_par, eline).stddev_init
+            model = models.Gaussian1D(self.elines[eline].amplitude * a0,
+                                      wave_rest * (1+ self.elines[eline].vel/self.c),
+                                      self.elines[eline].disp / self.c * wave_rest
                                       )
 
             setattr(eline_models, eline, model)
@@ -329,8 +349,9 @@ class Spectrum(Cube):
         """
 
         # get all eline_models in component
-        basemodels = np.full(len(self.elines_par.__dict__), models.Gaussian1D())
-        for idx, eline in enumerate(self.elines_par.__dict__):
+        basemodels = np.full(len(self.elines.keys()), models.Gaussian1D())
+
+        for idx, eline in enumerate(self.elines.keys()):
             basemodels[idx] = getattr(self.eline_models, eline)
 
         # compound model
@@ -406,8 +427,8 @@ class Spectrum(Cube):
         """
 
         # (1) par_table
-        t = Table([[eline for eline in self.elines_par.__dict__],
-                   *(np.array([(self.bestfit_model[i].parameters) for i in range(len(self.elines_par.__dict__))])).T],
+        t = Table([[eline for eline in self.elines.keys()],
+                   *(np.array([(self.bestfit_model[i].parameters) for i in range(len(self.elines.keys()))])).T],
                     names=('eline',  'amplitude', 'mean', 'stddev')
                   )
 
@@ -425,7 +446,7 @@ class Spectrum(Cube):
 
         # ???
 
-        for idx,eline in enumerate(self.elines_par.__dict__):
+        for idx,eline in enumerate(self.elines.keys()):
             t[eline] = self.bestfit_model[idx](self.wvl*u.Angstrom).value
 
         t.write(self.par.output_dir + '/' + self.par.obj + '.agnspec_components.fits', overwrite=True)

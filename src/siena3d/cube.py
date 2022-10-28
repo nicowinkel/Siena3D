@@ -4,7 +4,6 @@ This file contains the cube class
 
 from .data import Data
 from .header import Header
-
 import numpy as np
 from astropy.io import fits
 

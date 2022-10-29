@@ -97,7 +97,7 @@ class Astrometry(Cube):
         self.spectrum.fit()
 
         # load fit result from written file
-        self.par_table = self.load_table(filename=self.par.output_dir + '/' + self.par.obj + '.par_table.fits')
+        #self.par_table = self.load_table(filename=self.par.output_dir + '/' + self.par.obj + '.par_table.fits')
 
     def load_table(self, filename):
         """
@@ -149,7 +149,7 @@ class Astrometry(Cube):
         A = np.zeros([wvl.shape[0], len(self.spectrum.components.keys())])
 
         for idx, i in enumerate(self.spectrum.components.keys()):
-            A[:, idx] = getattr(self.basis.arrays, i)
+            A[:, idx] = self.basis.arrays[i]
 
         # must contain only finite values
         A[np.isnan(A)] = 0
@@ -162,7 +162,7 @@ class Astrometry(Cube):
         popt, rnorm = nnls(A * wmatrix, b * w)
         model_spec = np.zeros(spec_eline.shape)
         for idx, i in enumerate(self.spectrum.components.keys()):
-            model_spec += popt[idx] * getattr(self.basis.arrays, i)
+            model_spec += popt[idx] * self.basis.arrays[i]
 
         return popt, model_spec
 
@@ -236,7 +236,7 @@ class Astrometry(Cube):
         -------
         fluxmodels: `numpy.array`
              images of the model surface brightness distribution
-        loxs: 'tuple'
+        locs: 'tuple'
              (x,y) coordinates of the centroid in the minicube frame
         """
 
@@ -348,11 +348,15 @@ class Astrometry(Cube):
         self.par = siena3d.parameters.load_parlist(self.parfile)
         self.makedir()
 
+        # setup kinematic basis
+        self.basis = Basis(self.par)
+
         print(' [1] Get AGN spectrum')
         self.setup_agn_spectrum(self.par.input)
 
-        # setup kinematic basis
-        self.basis = Basis(self.wvl, self.spectrum.components, self.par)
+        # setup kinematic basis with best-fit parameters from AGN spectrum
+        self.basis.setup_basis_models()
+        self.basis.setup_basis_arrays(self.wvl)
 
         # fit components to cube
         print(' [2] Fit components to cube')

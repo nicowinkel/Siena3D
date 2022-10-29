@@ -9,8 +9,7 @@ This allows to resolve and  characterize the individual components with a sub-pi
 well below the width of the point spread function.
 
 Siena3D was originally developed to analyse the extended emission line region (EELR) in unobscured AGN obtained with
-ESO VLT/MUSE. However, the method may also be applied to other science cases where emission line spectra are traced in
-3D cubes obtained with other IFS instruments.
+ESO VLT/MUSE. However, the method may also be applied to other science cases or IFU data that were aquired with other instruments.
 
 ## Installation
 The easiest way to install is to first create a dedicated conda environment prior to the installation:

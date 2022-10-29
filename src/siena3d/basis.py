@@ -5,35 +5,40 @@ import numpy as np
 from astropy.io import fits
 from astropy.table import Table
 from astropy.modeling import models
+from .emission_line import EmissionLine, EmissionLineSet
 
 class Component:
         """
-        A class which represents the kinematic components.
+        A class which represents a kinematic component.
+        It contains information on its spectrum, its 2D flux map measured in
+        the data cube and its spectroastrometrically determined parameters.
 
          Parameters
          ----------
         name : `string`
             emission line name
+        fluxmap: 'numpy.ndarray'
+            2d flux distribution measured in the data cube
+        errmap: 'numpy.ndarray'
+            2d error of the component's flux measured in the data cube
+        locs: 'tuple'
+             (x,y) coordinates of the centroid in the minicube frame
         """
 
-        def __init__(self, wvl, components, par):
-            """
-            A class which contains the kinematic basis.
-            This includes the parameters in the eline.par file and the
-            the best-fit model parameters and its spectrum.
+        def __init__(self, elines, wvl, spectrum=None, error=None, fluxmap=None, errmap=None, model=None, locs=None):
 
-             Parameters
-             ----------
-            name : `string`
-                emission line name
-            """
+            self.elines = elines
+            self.wvl = wvl,
+            self.spectrum = spectrum
+            self.error = error
+            self.fluxmap = fluxmap
+            self.errmap = errmap
+            self.model = model
+            self.locs = locs
 
-            self.wvl = wvl
-            self.components = components
-            self.par = par
 
 class Basis:
-    def __init__(self, wvl, components, par):
+    def __init__(self, par):
         """
         A class which contains the kinematic basis.
         This includes the parameters in the eline.par file and the
@@ -41,19 +46,12 @@ class Basis:
 
          Parameters
          ----------
-        name : `string`
-            emission line name
+        par : `string`
+            'Parameter' object containint the input parameters of the 'parameters.par' file
         """
 
-        self.wvl =wvl
-        self.components = components
         self.par = par
-
         self.components = self.load_components()
-        # combine astropy models
-        self.models = self.setup_basis_models(self.components)
-        # initialize arrays containing normalized spectra
-        self.arrays = self.setup_basis_arrays()
 
     def load_components(self):
         """Read in the emission line parameters file
@@ -61,7 +59,8 @@ class Basis:
        Returns
        -------
        components: `dictionary`
-           dictionary with the list of emission lines contained in each of the kinematic components
+           dictionary with the EmissionLineSets which the indiviual emission lines components that belong to
+           the kinematic component.
        """
 
         elines_file = self.par.elines_par
@@ -72,58 +71,68 @@ class Basis:
 
         for idx, line in enumerate(lines):
 
-            eline, component, tied, amp_init, offset_init, stddev_init = line.split()
+            eline, component, tied, amp_init, vel_init, disp_init  = line.split()
 
-            # new key for every kin. component
+            emissionline = EmissionLine(name=eline,
+                                        component=component,
+                                        tied=tied,
+                                        idx=idx,
+                                        amplitude=float(amp_init),
+                                        vel=float(vel_init),
+                                        disp=float(disp_init)
+                                        )
+
+            # new attribute for every kin. component
             if component not in components.keys():
-                components[component] = [eline]
-            else:
-                components[component].append(eline)
+                components[component] = EmissionLineSet()
+
+            components[component].add_line(emissionline)
 
         return components
 
-    def setup_basis_models(self, components):
+    def setup_basis_models(self):
         """
         This function combines models for which the flux ratio and kinematics
         are determined from the best-fit AGN spectrum. Thus, a basis_model contains
         all emission lines and ties the kinematic and flux-ratios amongst them.
 
-        Parameters
-        ----------
-        components : `list`
-            names of the kinematic components which may contain contributions
-            from multiple emission lines
-
         Returns
         -------
-        basis_models: class with attributes `astropy.modeling.functional_models.Gaussian1D`
+        models: class with attributes `astropy.modeling.functional_models.Gaussian1D`
             attributes contain the combined models for the respective kinematic component
         """
 
-        # load best-fit parameters from AGN spectrum
         par_table = self.par.output_dir + '/' + self.par.obj + '.par_table.fits'
         with fits.open(par_table) as hdul:
             t = Table(hdul[1].data)
-        basis_models = type('', (), {})()
 
-        for component in components:
+        comp_models = {}
 
-            # get all elines that belong to that component
-            basemodels = np.full(len(components[component]), models.Gaussian1D())
-            for idx, eline in enumerate(components[component]):
-                row = np.argwhere(t['eline'] == eline)[0]
-                model = models.Gaussian1D(t['amplitude'][row], t['mean'][row], t['stddev'][row])
-                basemodels[idx] = model
+        for component in self.components:
+
+            # acquire elines that belong to component from AGN fit output file
+            compmodels = np.full(len(self.components.keys()), models.Gaussian1D())
+            for idx, eline in enumerate(self.components[component].elines):
+                row = self.components[component].elines[eline].idx
+                eline = EmissionLine(name=t['name'][row],
+                                     component=t['component'][row],
+                                     tied=t['tied'][row],
+                                     idx=idx,
+                                     amplitude= t['amplitude'][row],
+                                     vel=t['vel'][row],
+                                     disp=t['disp'][row]
+                                     )
+                compmodels[idx] = eline.model
 
             # combine the eline models
-            for idx in range(len(basemodels))[1:]:
-                basemodels[0] += basemodels[idx]
+            for idx in range(len(compmodels))[1:]:
+                compmodels[0] += compmodels[idx]
 
-            setattr(basis_models, component, basemodels[0])
+            comp_models[component] = compmodels[0]
 
-        return basis_models
+        self.models = comp_models
 
-    def setup_basis_arrays(self):
+    def setup_basis_arrays(self, wvl):
         """
         Evaluates the model for a given wavelength array
         returns normalized spectrum for the base components
@@ -139,12 +148,13 @@ class Basis:
             the respective kinematic component
         """
 
-        basis = type('', (), {})()  # empty object to store spectra
+        arrays = {}  # empty object to store spectra
 
         for component in self.components.keys():
-            spectrum = getattr(self.models, component)(self.wvl)
+            spectrum = self.models[component](wvl)
             spectrum_norm = spectrum / np.nansum(spectrum)
 
-            setattr(basis, component, spectrum_norm)
+            arrays[component] =  spectrum_norm
 
-        return basis
+        self.wvl = wvl
+        self.arrays = arrays

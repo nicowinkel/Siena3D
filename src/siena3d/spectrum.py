@@ -139,13 +139,13 @@ class Spectrum(Cube):
 
             eline, component, tied, amp_init, vel_init, disp_init  = line.split()
             emissionline = EmissionLine(name=eline,
-                                         component=component,
-                                         tied=tied,
-                                         idx=idx,
-                                         amplitude=float(amp_init),
-                                         vel=float(vel_init),
-                                         disp=float(disp_init)
-                                    )
+                                        component=component,
+                                        tied=tied,
+                                        idx=idx,
+                                        amplitude=float(amp_init),
+                                        vel=float(vel_init),
+                                        disp=float(disp_init)
+                                        )
 
             elines.add_line(emissionline)
 
@@ -310,6 +310,8 @@ class Spectrum(Cube):
                                                                                                 idx_eline, idx_ref)
 
 
+
+
     def setup_eline_models(self):
         """Set up emission line models
 
@@ -322,18 +324,13 @@ class Spectrum(Cube):
         # Scale all initial guess amplitudes w.r.t. maximum flux density in AGN spectrum
         a0 = np.nanmax(self.subtract_continuum(self.wvl,self.AGN_spectrum))
 
-        # empty instance
-        eline_models = type('', (), {})()
+        # empty dictionary to store the models
+        eline_models = {}
 
-        for eline in self.elines.keys():
-            wave_rest = self.lambdarest[eline.split('_')[0]]
-
-            model = models.Gaussian1D(self.elines[eline].amplitude * a0,
-                                      wave_rest * (1+ self.elines[eline].vel/self.c),
-                                      self.elines[eline].disp / self.c * wave_rest
-                                      )
-
-            setattr(eline_models, eline, model)
+        for eline in self.elines:
+            model = self.elines[eline].model
+            model.amplitude *= a0
+            eline_models[eline] = model
 
         return eline_models
 
@@ -352,7 +349,7 @@ class Spectrum(Cube):
         basemodels = np.full(len(self.elines.keys()), models.Gaussian1D())
 
         for idx, eline in enumerate(self.elines.keys()):
-            basemodels[idx] = getattr(self.eline_models, eline)
+            basemodels[idx] = self.eline_models[eline]
 
         # compound model
         for idx in range(len(basemodels))[1:]: # add all models to first element in array
@@ -426,11 +423,25 @@ class Spectrum(Cube):
                (1) a table that contains the spectra of the best-fit components
         """
 
-        # (1) par_table
-        t = Table([[eline for eline in self.elines.keys()],
-                   *(np.array([(self.bestfit_model[i].parameters) for i in range(len(self.elines.keys()))])).T],
-                    names=('eline',  'amplitude', 'mean', 'stddev')
+        # initialize empty array
+        t = Table([['someline'], ['somecomponent'], ['sometied'], [1000.], [333.], [10.]],
+                  names=('name', 'component', 'tied', 'amplitude', 'vel', 'disp')
                   )
+        t.remove_row(0)
+
+        for idx, eline in enumerate(self.elines.keys()):
+
+            eline = self.elines[eline]
+            idx = eline.idx
+            wave_rest = eline.wave_rest
+            newrow = [eline.name,
+                      eline.component,
+                      eline.tied,
+                       self.bestfit_model[idx].amplitude.value,
+                       (self.bestfit_model[idx].mean.value / wave_rest - 1) * self.c,
+                       self.bestfit_model[idx].stddev.value / wave_rest * self.c
+                      ]
+            t.add_row(newrow)
 
         hdul = fits.BinTableHDU(t)
         hdul.writeto(self.par.output_dir + '/' + self.par.obj + '.par_table.fits', overwrite=True)

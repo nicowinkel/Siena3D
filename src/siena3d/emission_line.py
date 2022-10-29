@@ -2,6 +2,14 @@
 This file contains the EmissionLine class
 """
 import numpy as np
+import sys
+from astropy.modeling import models
+if sys.version_info < (3, 9):
+    # importlib.resources either doesn't exist or lacks the files()
+    # function, so use the PyPI version:
+    import importlib_resources
+else:
+    import importlib.resources as importlib_resources
 
 
 class EmissionLine:
@@ -59,6 +67,7 @@ class EmissionLine:
                 model = np.nan
                 ):
 
+        self.c = 2.99792458e5
         self.name = name
         self.component = component
         self.tied = tied
@@ -69,21 +78,51 @@ class EmissionLine:
         self.vel_err = vel_err
         self.disp = disp
         self.disp_err = disp_err
-        self.model = model
-        self.wavelength = wavelength
+        self.wave_rest = self.get_waverf()
         self.flux = flux
         self.error = error
-        self.model = model
+        self.model = self.get_model()
 
+    def get_waverf(self):
+        """Read in the rest-frame wavelength of single emission line
 
+        Returns
+        -------
+        lambdarest: `float`
+            emission line names with values of their rest-frame central wavelengths
+        """
+
+        pkg = importlib_resources.files("siena3d")
+        pkg_eline_file = pkg / "data" / "eline_rf.txt"
+        with pkg_eline_file.open() as f:
+            lines = [line for line in f if not (line.startswith('#') or (line.split()==[]))]
+
+        lambdarest = np.nan
+        foundname = False
+        for line in lines:
+            line, wave = line.split()
+            if  (line in self.name):
+                lambdarest = float(wave)
+                foundname = True
+
+        if not foundname:
+            raise ValueError('Emission line name not present int wave_rf.txt')
+
+        return lambdarest
+
+    def get_model(self):
+        model = models.Gaussian1D(self.amplitude,
+                                  self.wave_rest * (1 + self.vel / self.c),
+                                  self.disp / self.c *  self.wave_rest
+                                  )
+
+        return model
 
 
 class EmissionLineSet:
+    """Contains dictionary of EmissionLine objects, called by their names;
+    """
     def __init__(self):
-        """
-        Emission Line Set class:
-        contains dictionary of EmissionLine objects, called by their names;
-        """
         self.elines = {}
 
     def add_line(self, emission_line):

@@ -1,4 +1,4 @@
-# eline                 component       tied            amp_init    vel_init  disp_init
+# name                  component       tied            amp_init    vel_init  disp_init
 Hb_broad                broad           Hb_broad        .15         -230          1300
 FeII4924_broad          broad           Hb_broad        .05         -230          1300
 FeII5018_broad          broad           Hb_broad        .05         -230          1300

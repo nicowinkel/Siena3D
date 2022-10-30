@@ -208,11 +208,11 @@ def plotly_spectrum(spectrum, savefig=False):
     colors = [mpl.colors.to_hex(cmap((idx + .5) / n)) for idx in range(n)]
 
     # plot individual emission line components
-    for idx, comp in enumerate(spectrum.components):
-        for eline in spectrum.components[comp]:
+    for idx, component in enumerate(spectrum.components):
+        for eline in spectrum.components[component]:
             fig.add_trace(go.Scatter(x=t["wvl"], y=t[eline], mode="lines",
                                      line=go.scatter.Line(color=colors[idx], width=1.5), name=eline.split('_')[0],
-                                     legendgroup=comp, legendgrouptitle_text=comp, legendrank=11 + idx
+                                     legendgroup=component, legendgrouptitle_text=component, legendrank=11 + idx
                                      ),
 
                           row=1, col=1)
@@ -332,11 +332,11 @@ class FinalPlot:
         ax0 = plt.subplot(gs0[0])
         ax0.step(astrometry.wvl + .5 * 1.25, 3 * astrometry.cube.AGN_spectrum / np.nanmax(astrometry.cube.AGN_spectrum),
                  linewidth=1, color='k', label='AGN')
-        for idx, comp in enumerate(astrometry.spectrum.components):
-            spec_init = astrometry.basis.arrays[comp]
+        for idx, component in enumerate(astrometry.spectrum.components):
+            spec_init = astrometry.basis.arrays[component]
             spec_init_norm = spec_init / np.nanmax(spec_init)
             ax0.plot(astrometry.wvl + .5 * 1.25, spec_init_norm, linestyle='--', linewidth=.8, color=colors[idx],
-                     label=comp)
+                     label=component)
         ax0.legend(fontsize=8)
         ax0.set_xlim(min(astrometry.wvl), max(astrometry.wvl))
         #ax0.set_ylim(np.nanmax(astrometry.cube.AGN_spectrum))
@@ -348,8 +348,8 @@ class FinalPlot:
         # Model spectrum from adding the best-fit components
         _, continuum_fit = astrometry.spectrum.subtract_continuum(astrometry.wvl, astrometry.cube.data[:, i, j])
         bestfit_spectrum = continuum_fit
-        for idx, comp in enumerate(astrometry.spectrum.components):
-            spec_fit = getattr(astrometry.fluxmap, comp)[i, j] * astrometry.basis.arrays[comp]
+        for idx, component in enumerate(astrometry.spectrum.components):
+            spec_fit = astrometry.basis.components[component].fluxmap[i, j] * astrometry.basis.arrays[component]
             bestfit_spectrum = np.nansum([bestfit_spectrum, spec_fit], axis=0)
         spec = astrometry.cube.data[:, i, j]
         err = astrometry.cube.error[:, i, j]
@@ -358,9 +358,10 @@ class FinalPlot:
         ax1 = plt.subplot(gs1[0])
         ax1.plot(astrometry.wvl, bestfit_spectrum, linewidth=1, c='firebrick', label='model')
         ax1.step(astrometry.wvl + .5 * 1.25, spec, color='k', linewidth=1, label='data')
-        for idx, comp in enumerate(astrometry.spectrum.components):
-            spec_fit = getattr(astrometry.fluxmap, comp)[coor[0], coor[1]] * astrometry.basis.arrays[comp]
-            ax1.fill_between(astrometry.wvl + .5 * 1.25, spec_fit, linewidth=1, color=colors[idx], label=comp)
+        for idx, component in enumerate(astrometry.spectrum.components):
+            spec_fit = astrometry.basis.components[component].fluxmap[coor[0], coor[1]] *\
+                       astrometry.basis.arrays[component]
+            ax1.fill_between(astrometry.wvl + .5 * 1.25, spec_fit, linewidth=1, color=colors[idx], label=component)
         ax1.legend(fontsize=8)
         ax1.set_xlim(min(astrometry.wvl), max(astrometry.wvl))
         ax1.set_ylim(1e-4 * np.nanmax(astrometry.cube.AGN_spectrum))
@@ -423,15 +424,15 @@ class FinalPlot:
 
         # Top row: flux maps
         cmap = mpl.cm.get_cmap('gist_earth_r')
-        for idx, comp in enumerate(plotmaps):
-            fluxmap = getattr(astrometry.fluxmap, comp)
+        for idx, component in enumerate(plotmaps):
+            fluxmap = astrometry.basis.components[component].fluxmap
             ax = plt.subplot(gs[0, idx])
             im = ax.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', cmap=cmap,  # extent=extent,
                            norm=LogNorm(vmin=2e-2, vmax=1))
             scalebar(ax, astrometry, c='k', loc=(.5, .22), distance=50)
 
             # annotations
-            ax.annotate(comp, xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
+            ax.annotate(component, xy=(0.9, 0.85), fontsize=14, ha='right', xycoords='axes fraction')
             ax.annotate('(' + chr(0 * len(plotmaps) + idx + 97) + ')',
                         ha='left', xy=(0.1, 0.85), fontsize=14, xycoords='axes fraction')
             if idx == 0: ax.annotate(r'Data', xy=(0.9, .7), fontsize=14, ha='right', xycoords='axes fraction')
@@ -452,8 +453,8 @@ class FinalPlot:
                 colorbar(ax, im, label=cbarlabel)
 
         # Row 2: Model light distribution
-        for idx, comp in enumerate(plotmaps):
-            fluxmap = getattr(astrometry.fluxmodel, comp)
+        for idx, component in enumerate(plotmaps):
+            fluxmap = astrometry.basis.components[component].fluxmap
             ax = plt.subplot(gs[1, idx])
             im = ax.imshow(fluxmap / np.nanmax(fluxmap), origin='lower', cmap=cmap,  # extent=extent
                            norm=LogNorm(vmin=2e-2, vmax=1))
@@ -467,12 +468,12 @@ class FinalPlot:
             # centroid location
             # add the location of the component, which is measured in coordinates of the minicube pixels
 
-            ax.scatter(astrometry.loc.broad[0],  # + extent[0],
-                       astrometry.loc.broad[1],  # + extent[2],
+            ax.scatter(astrometry.basis.components['broad'].centroid[0],  # + extent[0],
+                       astrometry.basis.components['broad'].centroid[1],  # + extent[2],
                        marker='x', c='firebrick', s=40, label='AGN')
             if idx > 0:
-                ax.scatter(getattr(astrometry.loc, comp)[0],  # + extent[0],
-                           getattr(astrometry.loc, comp)[1],  # + extent[2],
+                ax.scatter(astrometry.basis.components[component].centroid[0],  # + extent[0],
+                           astrometry.basis.components[component].centroid[1],  # + extent[2],
                            marker='x', c='gold', s=40, label='centroid')
 
             # add legend
@@ -497,13 +498,13 @@ class FinalPlot:
 
         # Row 3: Residual maps
         cmap = mpl.cm.get_cmap('seismic')
-        for idx, comp in enumerate(plotmaps):
+        for idx, component in enumerate(plotmaps):
 
             # combine systematic error from PSF with statistical error from data cube noise
             # compute systematic error from the normalized map, scaled to the component flux map
-            residuals = getattr(astrometry.fluxmap, comp) - getattr(astrometry.fluxmodel, comp)
-            error = np.sqrt(getattr(astrometry.errmap, comp)**2 +
-                            (getattr(astrometry, 'sysmap') * getattr(astrometry.fluxmap, comp))**2
+            residuals = astrometry.basis.components[component].fluxmap - astrometry.basis.components[component].fluxmodel
+            error = np.sqrt(astrometry.basis.components[component].errmap**2 +
+                            (astrometry.sysmap * astrometry.basis.components[component].fluxmap)**2
                             )
 
             ax = plt.subplot(gs[2, idx])
@@ -633,8 +634,8 @@ def print_result(astrometry):
     print('\n')
     for component in astrometry.spectrum.components:
         print('%15s  F = (%2.2f \u00B1% 2.2f) x %15s' % (component,
-                                                         np.nansum(getattr(astrometry.fluxmap, component)),
-                                                         np.nansum(getattr(astrometry.errmap, component)),
+                                                         np.nansum(astrometry.basis.components[component].fluxmap),
+                                                         np.nansum(astrometry.basis.components[component].errmap),
                                                          astrometry.cube.getHdrValue(keyword='BUNIT')
                                                          )
               )

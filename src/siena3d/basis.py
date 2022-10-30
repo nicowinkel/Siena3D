@@ -25,7 +25,7 @@ class Component:
              (x,y) coordinates of the centroid in the minicube frame
         """
 
-        def __init__(self, elines, wvl, spectrum=None, error=None, fluxmap=None, errmap=None, model=None, locs=None):
+        def __init__(self, elines, wvl, spectrum=None, error=None, fluxmap=None, errmap=None, fluxmodel=None, centroid=None):
 
             self.elines = elines
             self.wvl = wvl,
@@ -33,8 +33,8 @@ class Component:
             self.error = error
             self.fluxmap = fluxmap
             self.errmap = errmap
-            self.model = model
-            self.locs = locs
+            self.fluxmodel = fluxmodel
+            self.centroid = centroid
 
 
 class Basis:

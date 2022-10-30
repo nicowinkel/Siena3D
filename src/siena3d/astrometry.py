@@ -199,7 +199,7 @@ class Astrometry(Cube):
                 err = error[:, i, j]
 
                 # linear regression
-                # fit use fluxes as fitparameter rather than amplitudes!
+                # fit use fluxes as fit parameter rather than amplitudes!
                 # using MC error estimation
                 scalefactor_mc = np.zeros((self.par.samples_spectro, len(self.spectrum.components)))
                 for k in np.arange(self.par.samples_spectro):
@@ -213,16 +213,13 @@ class Astrometry(Cube):
                 scalefactor_map[i, j] = scalefactor
                 scaleerr_map[i, j] = scaleerr
 
-        # convert fit results from 3D array to attributes
-        flux = type('', (), {})()
-        error = type('', (), {})()
-        for idx, component in enumerate(self.spectrum.components.keys()):
-            setattr(flux, component, scalefactor_map[:, :, idx])
-            setattr(error, component, scaleerr_map[:, :, idx])
+        for idx, component in enumerate(self.basis.components.keys()):
+            self.basis.components[component].fluxmap = scalefactor_map[:, :, idx]
+            self.basis.components[component].errmap = scaleerr_map[:, :, idx]
 
-        return flux, error
 
-    def get_COMPlocs(self, mc_error=True):
+
+    def get_centroids(self, mc_error=True):
         """
         For each of the kinematic components, this function fits the PSF to the 2D light distribution.
         Computes the position of the centroid relative to the PSF model centroid.
@@ -247,17 +244,17 @@ class Astrometry(Cube):
         # Fit Moffat PSF to each of the components light profiles
         for component in tqdm(self.spectrum.components):
 
-            image = getattr(self.fluxmap, component)
-            error = getattr(self.errmap, component)
+            image = self.basis.components[component].fluxmap
+            error = self.basis.components[component].errmap
 
-            img_model, model = self.psf.fit_PSFloc(image, error)
+            img_model, centroid = self.psf.fit_loc(image, error)
 
             if mc_error:
                 loc_mc = np.zeros((self.par.samples_eline, 2))
                 for i in np.arange(self.par.samples_eline):
                     image_mc = np.random.normal(image, error)
-                    image_i, model_i = self.psf.fit_PSFloc(image_mc, error)
-                    loc_mc[i] = np.array([model_i.x_0.value, model_i.y_0.value])
+                    _, centroid_i = self.psf.fit_loc(image_mc, error)
+                    loc_mc[i] = centroid_i
 
                 loc = np.nanmedian(loc_mc, axis=0)
                 loc_err = np.std(loc_mc, axis=0)
@@ -265,10 +262,10 @@ class Astrometry(Cube):
                 loc = (np.nan, np.nan)
                 loc_err = (np.nan, np.nan)
 
-            setattr(fluxmodels, component, img_model)
-            setattr(locs, component, np.array([loc[0], loc[1], loc_err[0], loc_err[1]]))
+            self.basis.components[component].fluxmodel =  img_model
+            self.basis.components[component].centroid =  np.array([loc[0], loc[1], loc_err[0], loc_err[1]])
 
-        return fluxmodels, locs
+        return None
 
     def estimate_sys(self):
         """
@@ -282,14 +279,17 @@ class Astrometry(Cube):
             normalized systematic error of the PSF model
         """
 
-        image = getattr(self.fluxmap, 'broad')
-        model = getattr(self.fluxmodel, 'broad')
+        image = self.basis.components['broad'].fluxmap
+        model = self.basis.components['broad'].fluxmodel
         sysmap = image / model
 
         return sysmap
 
     def get_offset(self, component):
-        """ Computes the centroids' spatial offset from the broad line emission.
+        """
+        Computes the components' projected spatial distance from the location of the
+        broad line emission.
+
 
         Parameters
         ----------
@@ -297,11 +297,17 @@ class Astrometry(Cube):
             component for which the offset from the AGN position is computed
         """
 
-        px = np.sqrt((self.loc.broad[0] - getattr(self.loc, component)[0]) ** 2 \
-                     + (self.loc.broad[1] - getattr(self.loc, component)[1]) ** 2
+        px = np.sqrt((self.basis.components['broad'].centroid[0] -
+                      self.basis.components[component].centroid[0]
+                      ) ** 2 +
+                     (self.basis.components['broad'].centroid[1] -
+                      self.basis.components[component].centroid[1]
+                      ) ** 2
                      )
-        dpx = np.sqrt(self.loc.broad[2] ** 2 + getattr(self.loc, component)[2] ** 2 \
-                      + self.loc.broad[3] ** 2 + getattr(self.loc, component)[3] ** 2
+        dpx = np.sqrt(self.basis.components['broad'].centroid[2] ** 2 +
+                      self.basis.components[component].centroid[2] ** 2 +
+                      self.basis.components['broad'].centroid[3] ** 2 +
+                      self.basis.components[component].centroid[3] ** 2
                       )
 
         return px, dpx
@@ -320,10 +326,10 @@ class Astrometry(Cube):
 
         for component in self.spectrum.components:
 
-            fluxmap = getattr(self.fluxmap, component)
-            errormap = getattr(self.errmap, component)
-            modelmap = getattr(self.fluxmodel, component)
-            residuals = (fluxmap - modelmap) / getattr(self.errmap, component)
+            fluxmap = self.basis.components[component].fluxmap
+            errormap = self.basis.components[component].errmap
+            modelmap = self.basis.components[component].fluxmodel
+            residuals = (fluxmap - modelmap) / errormap
 
             hdu_primary = fits.PrimaryHDU()
             hdul = fits.HDUList([hdu_primary])
@@ -360,15 +366,16 @@ class Astrometry(Cube):
 
         # fit components to cube
         print(' [2] Fit components to cube')
-        self.fluxmap, self.errmap = self.fit_cube(self.wvl, self.cube.data, self.cube.error)
+        self.fit_cube(self.wvl, self.cube.data, self.cube.error)
 
         # find PSF model parameters from 'broad' component
-        self.psf = PSF(data=self.fluxmap.broad, error=np.ones_like(self.fluxmap.broad),
+        self.psf = PSF(data=self.basis.components['broad'].fluxmap,
+                       error=np.ones_like(self.basis.components['broad'].fluxmap),
                        psf_model=self.par.psf_model, ncrop=self.par.ncrop, cz=self.par.cz)
 
         # find centroid for each of the kinematic components' light distribution
         print(' [3] Find centroids')
-        self.fluxmodel, self.loc = self.get_COMPlocs(mc_error=True)
+        self.get_centroids(mc_error=True)
 
         # estimate the systematic error
         self.sysmap = self.estimate_sys()

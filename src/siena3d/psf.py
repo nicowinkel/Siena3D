@@ -3,6 +3,8 @@ This file contains the psf class
 """
 
 import numpy as np
+import os
+import sys
 from astropy import units as u
 from astropy.modeling import models, fitting
 from maoppy.psfmodel import Psfao
@@ -33,13 +35,17 @@ class PSF():
         self.psf_model = psf_model
         self.ncrop = ncrop
         self.cz = cz
-        self.PSFmodel = self.get_PSFmodel()
+        self.x_0 = np.nan
+        self.y_0 = np.nan
 
-    def get_PSFmodel(self):
+        self.PSFmodel = self.initialize()
+
+    def initialize(self):
         """ PSF model for the broad (point-like) emission.
 
         Returns
         -------
+
         model: `maoppy.PSFAO`
              best-fitting model for the 2D surface brightness profile of the input component
         """
@@ -98,23 +104,27 @@ class PSF():
 
             # with warnings.catch_warnings():
             #    warnings.simplefilter("ignore")
+
             Pmodel = Psfao(image.shape, system=muse_nfm, samp=samp)
+
+            sys.stdout = open(os.devnull, 'w')  # avoid console printing during PSF fit
             psfao = psffit(image, Pmodel, guess, weights=None,
                            fixed=fixed, npixfit=self.ncrop  # ,  # fit keywords
                            # system=muse_nfm, samp=samp  # MUSE NFM keywords
                            )
-
-            # flux_fit, bck_fit = psfao.flux_bck
-            # fitao = flux_fit * psfao.psf + bck_fit
+            sys.stdout = sys.__stdout__  # enable console printing
 
             model = type('', (), {})()  # contains the position attributes
             model.parameters = psfao.x
+
             model.x_0 = (psfao.dxdy[0] + self.ncrop / 2) * u.pix
             model.y_0 = (psfao.dxdy[1] + self.ncrop / 2) * u.pix
 
             return model
 
-    def fit_PSFloc(self, image, error):
+
+
+    def fit_loc(self, image, error):
         """ Fit PSF model to light distribution where the only free parameters are (x, y, amplitude)
 
         Parameters
@@ -129,6 +139,8 @@ class PSF():
         model: `maoppy.psfmodel.Psfao` or `astropy.modeling.functional_models.Moffat2D` or `astropy.model.Gaussian2D`
              best-fitting model for the 2D surface brightness profile of the input component
         """
+
+        centroid = (np.nan, np.nan)
 
         # setup coordinates
         x, y = np.mgrid[:np.shape(image)[0], :np.shape(image)[1]]
@@ -178,12 +190,12 @@ class PSF():
 
             # Initialize Fitter
             fit = fitting.LevMarLSQFitter()
-
             # Fit light profile with model
             model = fit(model_init, x, y, image, weights=1 / error)
-
             # Model image
             img_model = model(y, x)
+            # get centroid coordinates from best-fit model
+            centroid = (model.x_0.value, model.y_0.value)
 
         else:
 
@@ -200,15 +212,19 @@ class PSF():
             samp = muse_nfm.samp(wavelength * 1e-10)  # sampling (2.0 for Shannon-Nyquist)
             fixed = [True, True, True, True, True, True, True]
 
+
             Pmodel = Psfao(image.shape, system=muse_nfm, samp=samp)
+
+            sys.stdout = open(os.devnull, "w")  # block console printing for PSF fit
             psfao = psffit(image, Pmodel, self.PSFmodel.parameters, weights=1 / error, fixed=fixed,
-                           npixfit=image.shape[0])
+                           npixfit=self.ncrop)
+            sys.stdout  # allow console printing again
 
             fitao = psfao.flux_bck[0] * psfao.psf + psfao.flux_bck[1]
             img_model = fitao
 
-            model = type('', (), {})()  # contains the position attributes
-            model.x_0 = (psfao.dxdy[0] + self.ncrop / 2) * u.pix
-            model.y_0 = (psfao.dxdy[1] + self.ncrop / 2) * u.pix
+            x_0 = (psfao.dxdy[0] + self.ncrop / 2) * u.pix
+            y_0 = (psfao.dxdy[1] + self.ncrop / 2) * u.pix
+            centroid = (x_0.value, y_0.value)
 
-        return img_model, model
+        return img_model, centroid

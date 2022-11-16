@@ -43,11 +43,11 @@ def set_rc_params():
     """
 
     mult = 1
-    mpl.rcParams.update({'font.size': 15 * mult})
+    mpl.rcParams.update({'font.size': 12 * mult})
     mpl.rcParams['legend.fontsize'] = 15 * mult
     mpl.rcParams['axes.linewidth'] = 1
-    mpl.rcParams['xtick.labelsize'] = 15 * mult
-    mpl.rcParams['ytick.labelsize'] = 15 * mult
+    mpl.rcParams['xtick.labelsize'] = 12 * mult
+    mpl.rcParams['ytick.labelsize'] = 12 * mult
     mpl.rcParams['xtick.major.size'] = 5
     mpl.rcParams['ytick.major.size'] = 5
     mpl.rcParams['xtick.major.width'] = 1
@@ -63,7 +63,7 @@ def set_rc_params():
     mpl.rcParams['ytick.left'] = True
     mpl.rcParams['ytick.right'] = True
     mpl.rcParams['axes.labelsize'] = 15 * mult
-    mpl.rcParams['text.usetex'] = True
+    # mpl.rcParams['text.usetex'] = True
 
 
 def colorbar(cax, mappable, orientation="vertical", ticks=None, label=None, fontsize=14, format=None):
@@ -442,7 +442,7 @@ class FinalPlot:
             ax.yaxis.set_minor_locator(AutoMinorLocator())
             ax.tick_params(axis='both', labelbottom=False)
             if idx == 0:
-                ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$', labelpad=-7)
+                ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$')
             else:
                 ax.tick_params(axis='both', labelleft=False)
 
@@ -486,7 +486,7 @@ class FinalPlot:
             ax.yaxis.set_minor_locator(AutoMinorLocator())
             ax.tick_params(axis='both', labelbottom=False)
             if idx == 0:
-                ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$', labelpad=-7)
+                ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$')
             else:
                 ax.tick_params(axis='both', labelleft=False)
 
@@ -521,7 +521,7 @@ class FinalPlot:
             ax.yaxis.set_minor_locator(AutoMinorLocator())
             ax.set_xlabel(r'$\Delta \,  \alpha \,[{\rm px}]$')
             if idx == 0:
-                ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$', labelpad=-7)
+                ax.set_ylabel(r'$\Delta \,  \delta \,[{\rm px}]$')
             else:
                 ax.tick_params(axis='both', labelleft=False)
 
